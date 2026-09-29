@@ -1,7 +1,6 @@
 import type { CurrencyCode } from '../types'
 
 export interface ExchangeQuote {
-  /** Units of local currency for one USD. Divide local amounts to compare with USD limits. */
   perUsd: Record<CurrencyCode, number>
   asOf: string
   source: 'live' | 'cached' | 'snapshot'
@@ -11,7 +10,6 @@ export const exchangeSourceUrl = 'https://open.er-api.com/v6/latest/USD'
 const storageKey = 'atlas-usd-rates-v1'
 const maxCacheAge = 24 * 60 * 60 * 1000
 
-/** Read on 2026-09-29; used only when the live public feed is unavailable. */
 export const snapshotRates: ExchangeQuote = {
   perUsd: { EUR: 0.879241, EGP: 52.070874, TRY: 48.997476 },
   asOf: '2026-09-29',
@@ -76,9 +74,7 @@ export async function fetchUsdExchange(): Promise<ExchangeQuote> {
       asOf,
       source: 'live',
     }
-    try { localStorage.setItem(storageKey, JSON.stringify({ storedAt: Date.now(), quote } satisfies CachedExchange)) } catch {
-      // Budget comparisons can still use the live result in private browsing.
-    }
+    try { localStorage.setItem(storageKey, JSON.stringify({ storedAt: Date.now(), quote } satisfies CachedExchange)) } catch {}
     return quote
   } catch {
     return cached ? { ...cached.quote, source: 'cached' } : snapshotRates

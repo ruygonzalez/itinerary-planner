@@ -1,6 +1,5 @@
 import type { CurrencyCode } from '../types'
 
-/** Country-owned facts stay separate from the city-specific itinerary catalog. */
 export class Country {
   constructor(
     readonly code: 'GR' | 'EG' | 'TR',

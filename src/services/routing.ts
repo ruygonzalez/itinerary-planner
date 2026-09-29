@@ -103,9 +103,7 @@ export async function fetchWalkingMatrix(places: Place[]): Promise<TravelMatrix>
         cacheVersion + cityId,
         JSON.stringify({ key, storedAt: Date.now(), matrix } satisfies CachedMatrix),
       )
-    } catch {
-      // Private browsing may disable storage; routing still works for this session.
-    }
+    } catch {}
     return matrix
   } catch {
     return estimatedMatrix(places)

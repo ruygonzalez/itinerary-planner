@@ -112,14 +112,10 @@ export function loadSnapshot(): PlannerSnapshot {
       const old = JSON.parse(legacy) as Partial<CityPlan> & { version?: number }
       if (old.version === 1) fallback.plans.athens = safePlan(old, 'athens')
     }
-  } catch {
-    // Malformed or disabled storage must not prevent a new trip.
-  }
+  } catch {}
   return fallback
 }
 
 export function saveSnapshot(snapshot: PlannerSnapshot): void {
-  try { localStorage.setItem(storageKey, JSON.stringify(snapshot)) } catch {
-    // The planner remains usable if storage is blocked or full.
-  }
+  try { localStorage.setItem(storageKey, JSON.stringify(snapshot)) } catch {}
 }

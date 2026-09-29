@@ -17,8 +17,6 @@ function FitStops({ points, center }: { points: Point[]; center: Point }) {
   const map = useMap()
   const key = points.map((point) => point.join(',')).join('|')
   useEffect(() => {
-    // Automatic fitting must not leave a zoom animation running while the
-    // selected city or day replaces the markers and map container.
     map.stop()
     if (points.length > 1) {
       map.fitBounds(latLngBounds(points), { padding: [34, 34], maxZoom: 14, animate: false })
@@ -27,7 +25,7 @@ function FitStops({ points, center }: { points: Point[]; center: Point }) {
     } else {
       map.setView(center, 13, { animate: false })
     }
-  }, [key, map, center[0], center[1]]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, map, center[0], center[1]])
   return null
 }
 

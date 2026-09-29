@@ -82,9 +82,6 @@ export function roundToQuarter(minutes: number): number {
   return Math.round(minutes / 15) * 15
 }
 
-// The official sites list Orthodox Easter as a closure. For 1900–2099 the
-// Julian-to-Gregorian difference is 13 days; the rest of the algorithm is the
-// Julian computus, deliberately independent of the viewer's time zone.
 export function orthodoxEaster(year: number): string {
   const a = year % 4
   const b = year % 7

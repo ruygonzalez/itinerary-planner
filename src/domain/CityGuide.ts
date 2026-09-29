@@ -14,7 +14,6 @@ interface CityGuideOptions {
   places: PlaceDraft[]
 }
 
-/** Each destination owns its country, local calendar, curated venues and price currency. */
 export class CityGuide {
   readonly id: CityId
   readonly name: string

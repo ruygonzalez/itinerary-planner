@@ -43,8 +43,6 @@ export function usePlanner() {
   const matrix = matrices[cityId]
   const dates = useMemo(() => datesInRange(plan.startDate, plan.endDate), [plan.startDate, plan.endDate])
 
-  // The first visit creates three independent, constraint-checked city legs.
-  // A cleared leg has generatedOnce=true and remains cleared on reload.
   useEffect(() => {
     setSnapshot((current) => {
       let next = current
@@ -61,9 +59,6 @@ export function usePlanner() {
       }
       return next
     })
-    // Deliberately generate once with an estimated matrix, then refine the
-    // selected city when a real foot-route table arrives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => saveSnapshot(snapshot), [snapshot])
@@ -91,8 +86,6 @@ export function usePlanner() {
       })
     })
     return () => { active = false }
-  // Do not restart the network request merely because an FX quote changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId])
 
   useEffect(() => {
@@ -114,8 +107,6 @@ export function usePlanner() {
       }
       return next
     })
-  // The rate stamp handles idempotence even as route tables arrive later.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quote])
 
   const generateCity = (id: CityId): GenerationResult => {
@@ -259,7 +250,6 @@ export function usePlanner() {
   return {
     ...plan, city, cityId, plans: snapshot.plans, quote,
     dates, matrix, routeStatus: routeStatuses[cityId],
-    // The selected guide and all-city catalog are both available to export and summary UI.
     places: city.places, lookup: city.lookup, allPlacesById,
     allEvents: destinations.flatMap((destination) => snapshot.plans[destination.id].events),
     audits, auditsByCity, overlap,

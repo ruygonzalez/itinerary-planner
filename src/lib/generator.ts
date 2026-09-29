@@ -20,7 +20,6 @@ export interface GeneratorInput {
 
 export interface GenerationResult {
   events: ScheduledStop[]
-  /** Failed days contain only user-pinned stops, never an incomplete generated route. */
   failedDates: string[]
 }
 
@@ -92,7 +91,6 @@ function candidateScore(
   used: Set<string>, settings: PlanSettings, lookup: Record<string, Place>,
   matrix: TravelMatrix | null | undefined, quote: ExchangeQuote, random: () => number,
 ): number {
-  // Small review samples cannot dominate a route: the place's editorial priority still matters.
   const confidence = candidate.reviewCount ? Math.min(1, Math.log10(candidate.reviewCount + 1) / 3) : 0
   const rating = candidate.rating * confidence
   const repeatedFood = candidate.kind === 'food' && used.has(candidate.id) ? 7 : 0
@@ -152,8 +150,6 @@ function candidateStates(
     }
     options.push(...forPlace.sort((a, b) => b.score - a.score).slice(0, 2))
   }
-  // Keep more than one timing/restaurant alternative so the beam can recover
-  // from a later closure, a narrow lunch slot, or a nearby-meal constraint.
   return options.sort((a, b) => b.score - a.score).slice(0, 18).map(({ place, start, score }) => ({
     score: state.score + score,
     events: [...state.events, {
@@ -185,7 +181,6 @@ function keepBest(states: State[]): State[] {
     byLastPlace.set(last, (byLastPlace.get(last) ?? 0) + 1)
     if (selected.length === beamWidth) break
   }
-  // When only one venue is feasible, still use the remaining beam capacity.
   for (const state of unique) {
     if (selected.length === beamWidth) break
     if (!selected.includes(state)) selected.push(state)
@@ -249,8 +244,6 @@ function buildDay(
   }).complete)
   if (!feasible.length) return null
   const enhanced = feasible.map((state) => addOptionalActivities(state, date, input, lookup, used, random, run))
-  // Sample from the best few feasible outcomes: each click is allowed to differ,
-  // while hard constraints are already verified by the shared audit.
   const close = keepBest(enhanced).slice(0, 5)
   const top = close[0].score
   const weights = close.map((state) => Math.exp((state.score - top) / 9))
@@ -309,7 +302,6 @@ export function generateItinerary(input: GeneratorInput): GenerationResult {
     result.failedDates.length === best.failedDates.length && result.score >= best.score - 13,
   ).slice(0, 5)
   const selected = alternatives[Math.floor(random() * alternatives.length)] ?? best
-  // This final audit is a safety net for a future data or algorithm change.
   const safeEvents = selected.events.filter((event) => {
     if (event.pinned) return true
     return !selected.failedDates.includes(event.date)

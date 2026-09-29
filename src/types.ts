@@ -47,7 +47,6 @@ export interface OpeningRules {
 }
 
 export interface PriceQuote {
-  /** A per-person planning amount in the city's local currency. */
   amount: number
   currency: CurrencyCode
   basis: 'published-admission' | 'listed-range-midpoint' | 'menu-estimate'
@@ -71,7 +70,6 @@ export interface Place {
   reviewUrl: string
   cost: 'free' | 'ticket' | 'budget'
   price?: PriceQuote
-  /** Kept for the original Athens catalog; normalized to a PriceQuote by the city guide. */
   ticketPrice?: number
   tags: string[]
   priority: number
@@ -98,7 +96,6 @@ export interface ScheduledStop {
   duration: number
   pinned: boolean
   origin: 'manual' | 'generated'
-  /** Explicit role: a breakfast restaurant cannot silently count as lunch. */
   meal?: MealSlot
 }
 

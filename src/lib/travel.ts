@@ -18,7 +18,6 @@ export function estimatedLeg(a: Place, b: Place): TravelLeg {
   if (a.id === b.id) return { minutes: 0, meters: 0, source: 'estimate' }
   const hillFactor = hillIds.has(b.id) ? 1.12 : 1
   const meters = Math.round(straightLineMeters(a, b) * 1.42 * hillFactor)
-  // A modest detour factor, a 4.2 km/h pace and a few minutes for crossings.
   return {
     minutes: Math.max(5, Math.ceil(meters / 70) + 3),
     meters,
