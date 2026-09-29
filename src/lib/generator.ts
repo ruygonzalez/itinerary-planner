@@ -1,34 +1,37 @@
-import type {
-  Interest,
-  Place,
-  PlanSettings,
-  ScheduledStop,
-  TravelMatrix,
-} from '../types'
+import type { CityId, Interest, Place, PlanSettings, RequiredMeal, ScheduledStop, TravelMatrix } from '../types'
+import { auditDay, mealProximityIssues } from './audit'
+import { dayCosts, stopCostUsd, withinDailyCaps } from './costs'
 import { getAvailability, nextOpenSlots } from './hours'
+import { mealWindows } from './meals'
 import { dayWalking, getTravelLeg } from './travel'
 import { DAY_END, validatePlacement } from './validation'
+import type { ExchangeQuote } from '../services/exchange'
 
-interface GeneratorInput {
+export interface GeneratorInput {
+  cityId: CityId
   dates: string[]
   places: Place[]
   pinned: ScheduledStop[]
   settings: PlanSettings
   matrix?: TravelMatrix | null
+  quote: ExchangeQuote
   seed: number
 }
 
-interface Candidate {
-  place: Place
-  start: number
-  score: number
+export interface GenerationResult {
+  events: ScheduledStop[]
+  /** Failed days contain only user-pinned stops, never an incomplete generated route. */
+  failedDates: string[]
 }
 
-const attractionLimit = { easy: 2, balanced: 3, full: 4 } as const
-const mealWindows = {
-  lunch: { target: 13 * 60, earliest: 12 * 60, latest: 14 * 60 + 15 },
-  dinner: { target: 19 * 60, earliest: 18 * 60, latest: 20 * 60 },
-} as const
+type Role = RequiredMeal | 'morning' | 'afternoon'
+interface State { events: ScheduledStop[]; score: number }
+interface Candidate { place: Place; start: number; score: number }
+
+const roles: Role[] = ['breakfast', 'morning', 'lunch', 'afternoon', 'dinner']
+const beamWidth = 10
+const attempts = 5
+const activityTarget = { easy: 2, balanced: 3, full: 4 } as const
 
 function randomGenerator(seed: number): () => number {
   let state = seed >>> 0
@@ -41,395 +44,284 @@ function randomGenerator(seed: number): () => number {
   }
 }
 
-function softPick<T extends { score: number }>(
-  candidates: T[],
-  random: () => number,
-  count = 5,
-): T | null {
-  if (!candidates.length) return null
-  const top = [...candidates].sort((a, b) => b.score - a.score).slice(0, count)
-  const maximum = top[0].score
-  const weights = top.map((candidate) => Math.exp((candidate.score - maximum) / 6))
-  const total = weights.reduce((sum, weight) => sum + weight, 0)
-  let choice = random() * total
-  for (let index = 0; index < top.length; index += 1) {
-    choice -= weights[index]
-    if (choice <= 0) return top[index]
-  }
-  return top.at(-1) ?? null
-}
-
 function matchesInterest(place: Place, interest: Interest): boolean {
   if (interest === 'all') return true
   if (interest === 'food') return place.kind === 'food'
   if (interest === 'outdoors') return place.kind === 'outdoors'
   if (interest === 'art') return place.kind === 'museum'
-  return place.kind === 'sight' || place.tags.some((tag) => tag.includes('history'))
+  return place.kind === 'sight' || place.tags.some((tag) => /history|ancient/i.test(tag))
+}
+
+function roleSatisfied(role: Role, events: ScheduledStop[], lookup: Record<string, Place>): boolean {
+  if (role !== 'morning' && role !== 'afternoon') return events.some((event) => event.meal === role)
+  return events.some((event) => {
+    const place = lookup[event.placeId]
+    if (!place || place.kind === 'food') return false
+    return role === 'morning'
+      ? event.start < 12 * 60 && event.start + event.duration <= 12 * 60 + 15
+      : event.start >= 13 * 60 && event.start + event.duration <= 18 * 60
+  })
+}
+
+function roleWindow(role: Role, duration: number): { earliest: number; latest: number; target: number } {
+  if (role === 'morning') return {
+    earliest: 9 * 60, latest: Math.min(11 * 60, 12 * 60 + 15 - duration), target: 9 * 60 + 30,
+  }
+  if (role === 'afternoon') return {
+    earliest: 13 * 60 + 15, latest: Math.min(16 * 60 + 30, 18 * 60 - duration), target: 14 * 60 + 15,
+  }
+  return mealWindows[role]
 }
 
 function travelAdded(
-  events: ScheduledStop[],
-  date: string,
-  place: Place,
-  start: number,
-  lookup: Record<string, Place>,
-  matrix?: TravelMatrix | null,
+  events: ScheduledStop[], place: Place, start: number,
+  lookup: Record<string, Place>, matrix?: TravelMatrix | null,
 ): number {
-  const ordered = events.filter((event) => event.date === date).sort((a, b) => a.start - b.start)
+  const ordered = [...events].sort((a, b) => a.start - b.start)
   const previous = ordered.filter((event) => event.start + event.duration <= start).at(-1)
   const next = ordered.find((event) => event.start >= start + place.duration)
-  const previousPlace = previous ? lookup[previous.placeId] : null
-  const nextPlace = next ? lookup[next.placeId] : null
-  const before = previousPlace && nextPlace ? getTravelLeg(previousPlace, nextPlace, matrix).minutes : 0
-  const after =
-    (previousPlace ? getTravelLeg(previousPlace, place, matrix).minutes : 0) +
-    (nextPlace ? getTravelLeg(place, nextPlace, matrix).minutes : 0)
-  return after - before
+  const from = previous && lookup[previous.placeId]
+  const to = next && lookup[next.placeId]
+  const oldLeg = from && to ? getTravelLeg(from, to, matrix).minutes : 0
+  return (from ? getTravelLeg(from, place, matrix).minutes : 0) +
+    (to ? getTravelLeg(place, to, matrix).minutes : 0) - oldLeg
 }
 
 function candidateScore(
-  place: Place,
-  date: string,
-  start: number,
-  events: ScheduledStop[],
-  lookup: Record<string, Place>,
-  settings: PlanSettings,
-  foodUses: Map<string, number>,
-  matrix: TravelMatrix | null | undefined,
-  random: () => number,
-  target?: number,
+  candidate: Place, date: string, start: number, target: number, current: State,
+  used: Set<string>, settings: PlanSettings, lookup: Record<string, Place>,
+  matrix: TravelMatrix | null | undefined, quote: ExchangeQuote, random: () => number,
 ): number {
-  const onDay = events.filter((event) => event.date === date)
-  const kinds = new Set(onDay.map((event) => lookup[event.placeId]?.kind))
-  const availability = getAvailability(place, date)
-  const extraWalking = travelAdded(events, date, place, start, lookup, matrix)
-  const longLeg = extraWalking > 45 ? (extraWalking - 45) * 0.25 : 0
-  const savedBoost = settings.savedIds.includes(place.id) ? 15 : 0
-  const interestBoost = matchesInterest(place, settings.interest) ? 5 : 0
-  const varietyBoost = place.kind !== 'food' && !kinds.has(place.kind) ? 4 : 0
-  const foodRepeat = (foodUses.get(place.id) ?? 0) * 11
-  const uncertainty = availability.status === 'tentative' ? 11 : 0
-  const ideal = target ?? (place.kind === 'museum' ? 630 : place.kind === 'outdoors' ? 885 : 600)
-  const timing = Math.abs(start - ideal) / 85
-  const scarceHours = place.kind === 'sight' && availability.windows[0]?.close <= 930 ? 2 : 0
-  return (
-    place.priority * 7 +
-    place.rating * 2.4 +
-    savedBoost +
-    interestBoost +
-    varietyBoost +
-    scarceHours -
-    extraWalking * 0.53 -
-    longLeg -
-    foodRepeat -
-    uncertainty -
-    timing +
-    random() * 6
-  )
+  // Small review samples cannot dominate a route: the place's editorial priority still matters.
+  const confidence = candidate.reviewCount ? Math.min(1, Math.log10(candidate.reviewCount + 1) / 3) : 0
+  const rating = candidate.rating * confidence
+  const repeatedFood = candidate.kind === 'food' && used.has(candidate.id) ? 7 : 0
+  const repeatedActivity = candidate.kind !== 'food' && used.has(candidate.id) ? 16 : 0
+  const tentative = getAvailability(candidate, date).status === 'tentative' ? 4 : 0
+  const usd = stopCostUsd(candidate, quote) ?? 100
+  return candidate.priority * 5 + rating * 1.8 +
+    (settings.savedIds.includes(candidate.id) ? 12 : 0) +
+    (matchesInterest(candidate, settings.interest) ? 4 : 0) -
+    travelAdded(current.events, candidate, start, lookup, matrix) * 0.48 -
+    Math.abs(start - target) / 45 - usd * 0.05 -
+    repeatedFood - repeatedActivity - tentative + random() * 7
 }
 
-function bestAttractionCandidates(
-  date: string,
-  events: ScheduledStop[],
-  places: Place[],
-  used: Set<string>,
-  lookup: Record<string, Place>,
-  settings: PlanSettings,
-  foodUses: Map<string, number>,
-  matrix: TravelMatrix | null | undefined,
-  random: () => number,
-  morningOnly: boolean,
-  startDate: string,
-  endDate: string,
-  minimumStart = 9 * 60,
-): Candidate[] {
-  const candidates: Candidate[] = []
-  for (const place of places) {
-    if (place.kind === 'food' || used.has(place.id)) continue
-    const slots = nextOpenSlots(
-      place,
-      date,
-      minimumStart,
-      morningOnly ? 11 * 60 + 15 : DAY_END - place.duration,
-    )
-    let best: Candidate | null = null
-    for (const start of slots) {
-      if (
-        !validatePlacement({
-          place,
-          date,
-          start,
-          events,
-          lookup,
-          matrix,
-          startDate,
-          endDate,
-        }).ok
-      ) {
-        continue
-      }
-      const score = candidateScore(
-        place,
-        date,
-        start,
-        events,
-        lookup,
-        settings,
-        foodUses,
-        matrix,
-        random,
-        morningOnly ? 9 * 60 + 30 : undefined,
-      )
-      if (!best || score > best.score) best = { place, start, score }
+function candidateStates(
+  role: Role, state: State, date: string, input: GeneratorInput,
+  lookup: Record<string, Place>, used: Set<string>, random: () => number,
+  run: number,
+): State[] {
+  if (roleSatisfied(role, state.events, lookup)) return [state]
+  const options: Candidate[] = []
+  for (const place of input.places) {
+    if (role === 'morning' || role === 'afternoon') {
+      if (place.kind === 'food' || state.events.some((event) => event.placeId === place.id)) continue
+    } else {
+      if (!place.mealSlots?.includes(role) || state.events.some((event) => event.placeId === place.id)) continue
+      if (getAvailability(place, date).status === 'tentative' && !input.settings.includeTentativeMeals) continue
     }
-    if (best) candidates.push(best)
-  }
-  return candidates
-}
-
-function mealCandidates(
-  date: string,
-  meal: 'lunch' | 'dinner',
-  events: ScheduledStop[],
-  places: Place[],
-  lookup: Record<string, Place>,
-  settings: PlanSettings,
-  foodUses: Map<string, number>,
-  matrix: TravelMatrix | null | undefined,
-  random: () => number,
-  startDate: string,
-  endDate: string,
-): Candidate[] {
-  const { target, earliest, latest } = mealWindows[meal]
-  const candidates: Candidate[] = []
-  for (const place of places) {
-    if (!place.mealSlots?.includes(meal)) continue
-    if (events.some((event) => event.date === date && event.placeId === place.id)) continue
-    if ((foodUses.get(place.id) ?? 0) >= 2) continue
-    const availability = getAvailability(place, date)
-    if (availability.status === 'tentative' && !settings.includeTentativeMeals) continue
-    const slots = nextOpenSlots(place, date, earliest, latest)
-    let best: Candidate | null = null
-    for (const start of slots) {
-      if (
-        !validatePlacement({
-          place,
-          date,
-          start,
-          events,
-          lookup,
-          matrix,
-          startDate,
-          endDate,
-        }).ok
-      ) {
-        continue
-      }
-      const score = candidateScore(
-        place,
-        date,
-        start,
-        events,
-        lookup,
-        settings,
-        foodUses,
-        matrix,
-        random,
-        target,
-      )
-      if (!best || score > best.score) best = { place, start, score }
-    }
-    if (best) candidates.push(best)
-  }
-  return candidates
-}
-
-function hasMeal(events: ScheduledStop[], date: string, meal: 'lunch' | 'dinner', lookup: Record<string, Place>): boolean {
-  const { earliest, latest } = mealWindows[meal]
-  return events.some(
-    (event) =>
-      event.date === date &&
-      lookup[event.placeId]?.kind === 'food' &&
-      event.start >= earliest - 30 &&
-      event.start <= latest,
-  )
-}
-
-function availableAttractions(date: string, places: Place[]): number {
-  return places.filter(
-    (place) => place.kind !== 'food' && getAvailability(place, date).status !== 'closed',
-  ).length
-}
-
-function itineraryScore(
-  events: ScheduledStop[],
-  dates: string[],
-  lookup: Record<string, Place>,
-  matrix: TravelMatrix | null | undefined,
-  settings: PlanSettings,
-): number {
-  let score = 0
-  for (const date of dates) {
-    const day = events.filter((event) => event.date === date)
-    const variety = new Set(day.map((event) => lookup[event.placeId]?.kind))
-    score += variety.size * 3
-    if (!hasMeal(day, date, 'lunch', lookup)) score -= 18
-    if (!hasMeal(day, date, 'dinner', lookup)) score -= 18
-    score -= dayWalking(day, lookup, matrix).minutes * 0.37
-    for (const event of day) {
-      const place = lookup[event.placeId]
-      if (!place) continue
-      score += place.priority * 6 + place.rating * 2
-      if (settings.savedIds.includes(place.id)) score += 11
-      if (getAvailability(place, date).status === 'tentative') score -= 10
-    }
-  }
-  return score
-}
-
-export function generateItinerary({
-  dates,
-  places,
-  pinned,
-  settings,
-  matrix,
-  seed,
-}: GeneratorInput): ScheduledStop[] {
-  if (!dates.length) return pinned
-  const lookup: Record<string, Place> = Object.fromEntries(places.map((place) => [place.id, place]))
-  const random = randomGenerator(seed)
-  const constrainedFirst = [...dates].sort(
-    (a, b) => availableAttractions(a, places) - availableAttractions(b, places) || a.localeCompare(b),
-  )
-  const attempts: { score: number; events: ScheduledStop[] }[] = []
-
-  for (let run = 0; run < 16; run += 1) {
-    const events = pinned.map((event) => ({ ...event }))
-    const usedAttractions = new Set(
-      events.filter((event) => lookup[event.placeId]?.kind !== 'food').map((event) => event.placeId),
-    )
-    const foodUses = new Map<string, number>()
-    for (const event of events) {
-      if (lookup[event.placeId]?.kind === 'food') {
-        foodUses.set(event.placeId, (foodUses.get(event.placeId) ?? 0) + 1)
-      }
-    }
-    let sequence = 0
-    const add = (candidate: Candidate) => {
-      const { place, start } = candidate
-      events.push({
-        id: 'gen-' + seed.toString(36) + '-' + run + '-' + sequence++,
-        placeId: place.id,
-        date: currentDate,
-        start,
-        duration: place.duration,
-        pinned: false,
-        origin: 'generated',
+    if (stopCostUsd(place, input.quote) === null) continue
+    const { earliest, latest, target } = roleWindow(role, place.duration)
+    if (earliest > latest || place.duration + earliest > DAY_END) continue
+    const starts = nextOpenSlots(place, date, earliest, latest)
+      .sort((a, b) => Math.abs(a - target) - Math.abs(b - target))
+      .slice(0, 6)
+    const forPlace: Candidate[] = []
+    for (const start of starts) {
+      const result = validatePlacement({
+        place, date, start, events: state.events, lookup, matrix: input.matrix,
+        startDate: input.dates[0], endDate: input.dates.at(-1)!, cityId: input.cityId,
+        meal: role === 'morning' || role === 'afternoon' ? undefined : role,
       })
-      if (place.kind === 'food') {
-        foodUses.set(place.id, (foodUses.get(place.id) ?? 0) + 1)
-      } else {
-        usedAttractions.add(place.id)
+      if (!result.ok) continue
+      const nextEvent: ScheduledStop = {
+        id: `gen-${input.cityId}-${input.seed.toString(36)}-${run}-${date}-${role}-${place.id}-${start}`,
+        date, placeId: place.id, start, duration: place.duration,
+        origin: 'generated', pinned: false,
+        meal: result.meal,
+      }
+      const withCandidate = [...state.events, nextEvent]
+      if (!withinDailyCaps(dayCosts(withCandidate, lookup, input.quote), input.settings)) continue
+      if (role !== 'breakfast' && role !== 'lunch' &&
+        mealProximityIssues(withCandidate, lookup, input.matrix, false).length) continue
+      forPlace.push({
+        place, start,
+        score: candidateScore(place, date, start, target, state, used, input.settings, lookup, input.matrix, input.quote, random),
+      })
+    }
+    options.push(...forPlace.sort((a, b) => b.score - a.score).slice(0, 2))
+  }
+  // Keep more than one timing/restaurant alternative so the beam can recover
+  // from a later closure, a narrow lunch slot, or a nearby-meal constraint.
+  return options.sort((a, b) => b.score - a.score).slice(0, 18).map(({ place, start, score }) => ({
+    score: state.score + score,
+    events: [...state.events, {
+      id: `gen-${input.cityId}-${input.seed.toString(36)}-${run}-${date}-${role}-${place.id}-${start}`,
+      date, placeId: place.id, start, duration: place.duration,
+      origin: 'generated' as const, pinned: false,
+      meal: role === 'morning' || role === 'afternoon' ? undefined : role,
+    }],
+  }))
+}
+
+function keepBest(states: State[]): State[] {
+  const seen = new Set<string>()
+  const unique = states.sort((a, b) => b.score - a.score).filter((state) => {
+    const signature = state.events.map((event) => `${event.placeId}:${event.start}:${event.meal ?? ''}`).sort().join('|')
+    if (seen.has(signature)) return false
+    seen.add(signature)
+    return true
+  })
+  const byBreakfast = new Map<string, number>()
+  const byLastPlace = new Map<string, number>()
+  const selected: State[] = []
+  for (const state of unique) {
+    const breakfast = state.events.find((event) => event.meal === 'breakfast')?.placeId ?? 'none'
+    const last = state.events.at(-1)?.placeId ?? 'pinned'
+    if ((byBreakfast.get(breakfast) ?? 0) >= 3 || (byLastPlace.get(last) ?? 0) >= 2) continue
+    selected.push(state)
+    byBreakfast.set(breakfast, (byBreakfast.get(breakfast) ?? 0) + 1)
+    byLastPlace.set(last, (byLastPlace.get(last) ?? 0) + 1)
+    if (selected.length === beamWidth) break
+  }
+  // When only one venue is feasible, still use the remaining beam capacity.
+  for (const state of unique) {
+    if (selected.length === beamWidth) break
+    if (!selected.includes(state)) selected.push(state)
+  }
+  return selected
+}
+
+function addOptionalActivities(
+  state: State, date: string, input: GeneratorInput,
+  lookup: Record<string, Place>, used: Set<string>, random: () => number, run: number,
+): State {
+  const target = activityTarget[input.settings.pace]
+  let current = state
+  while (current.events.filter((event) => lookup[event.placeId]?.kind !== 'food').length < target) {
+    const options: State[] = []
+    for (const place of input.places) {
+      if (place.kind === 'food' || current.events.some((event) => event.placeId === place.id)) continue
+      if (stopCostUsd(place, input.quote) === null) continue
+      for (const window of [
+        { earliest: 10 * 60 + 30, latest: 12 * 60, target: 11 * 60 },
+        { earliest: 15 * 60 + 30, latest: 17 * 60 + 15, target: 16 * 60 },
+      ]) {
+        for (const start of nextOpenSlots(place, date, window.earliest, Math.min(window.latest, DAY_END - place.duration))
+          .sort((a, b) => Math.abs(a - window.target) - Math.abs(b - window.target)).slice(0, 3)) {
+          if (!validatePlacement({
+            place, date, start, events: current.events, lookup, matrix: input.matrix,
+            startDate: input.dates[0], endDate: input.dates.at(-1)!, cityId: input.cityId,
+          }).ok) continue
+          const candidate: ScheduledStop = {
+            id: `gen-${input.cityId}-${input.seed.toString(36)}-${run}-${date}-extra-${place.id}-${start}`,
+            date, placeId: place.id, start, duration: place.duration, origin: 'generated', pinned: false,
+          }
+          const events = [...current.events, candidate]
+          if (!withinDailyCaps(dayCosts(events, lookup, input.quote), input.settings)) continue
+          if (!auditDay({ date, cityId: input.cityId, events, lookup, settings: input.settings, matrix: input.matrix, quote: input.quote }).complete) continue
+          options.push({
+            events,
+            score: current.score + candidateScore(place, date, start, window.target, current, used, input.settings, lookup, input.matrix, input.quote, random),
+          })
+        }
       }
     }
-    let currentDate = dates[0]
+    current = keepBest(options)[0] ?? current
+    if (!options.length) break
+  }
+  return current
+}
 
+function buildDay(
+  date: string, pinned: ScheduledStop[], input: GeneratorInput,
+  lookup: Record<string, Place>, used: Set<string>, random: () => number, run: number,
+): State | null {
+  let beam: State[] = [{ events: pinned, score: 0 }]
+  for (const role of roles) {
+    beam = keepBest(beam.flatMap((state) => candidateStates(role, state, date, input, lookup, used, random, run)))
+    if (!beam.length) return null
+  }
+  const feasible = beam.filter((state) => auditDay({
+    date, cityId: input.cityId, events: state.events, lookup, settings: input.settings,
+    matrix: input.matrix, quote: input.quote,
+  }).complete)
+  if (!feasible.length) return null
+  const enhanced = feasible.map((state) => addOptionalActivities(state, date, input, lookup, used, random, run))
+  // Sample from the best few feasible outcomes: each click is allowed to differ,
+  // while hard constraints are already verified by the shared audit.
+  const close = keepBest(enhanced).slice(0, 5)
+  const top = close[0].score
+  const weights = close.map((state) => Math.exp((state.score - top) / 9))
+  let draw = random() * weights.reduce((sum, value) => sum + value, 0)
+  for (let index = 0; index < close.length; index += 1) {
+    draw -= weights[index]
+    if (draw <= 0) return close[index]
+  }
+  return close[0]
+}
+
+function dayScore(events: ScheduledStop[], lookup: Record<string, Place>, matrix?: TravelMatrix | null): number {
+  const kinds = new Set(events.map((event) => lookup[event.placeId]?.kind))
+  return events.reduce((score, event) => score + (lookup[event.placeId]?.priority ?? 0) * 5, 0) +
+    kinds.size * 3 - dayWalking(events, lookup, matrix).minutes * 0.32
+}
+
+export function generateItinerary(input: GeneratorInput): GenerationResult {
+  const { dates, places, pinned, matrix, settings, quote, cityId } = input
+  if (!dates.length) return { events: [...pinned], failedDates: [] }
+  const lookup: Record<string, Place> = Object.fromEntries(places.map((place) => [place.id, place]))
+  const random = randomGenerator(input.seed)
+  const constrainedFirst = [...dates].sort((a, b) => {
+    const available = (date: string) => places.filter((place) =>
+      place.kind !== 'food' && getAvailability(place, date).status !== 'closed' &&
+      stopCostUsd(place, quote) !== null,
+    ).length
+    return available(a) - available(b) || a.localeCompare(b)
+  })
+  const results: { events: ScheduledStop[]; failedDates: string[]; score: number }[] = []
+
+  for (let run = 0; run < attempts; run += 1) {
+    const events = pinned.map((event) => ({ ...event }))
+    const failedDates: string[] = []
+    const used = new Set(events.map((event) => event.placeId))
+    let score = 0
     for (const date of constrainedFirst) {
-      currentDate = date
-      const limit = attractionLimit[settings.pace]
-      const attractionCount = () =>
-        events.filter(
-          (event) => event.date === date && lookup[event.placeId]?.kind !== 'food',
-        ).length
-
-      if (attractionCount() < limit) {
-        const anchor = softPick(
-          bestAttractionCandidates(
-            date,
-            events,
-            places,
-            usedAttractions,
-            lookup,
-            settings,
-            foodUses,
-            matrix,
-            random,
-            true,
-            dates[0],
-            dates.at(-1)!,
-          ),
-          random,
-          6,
-        )
-        if (anchor) add(anchor)
+      const pinnedDay = events.filter((event) => event.date === date)
+      const day = buildDay(date, pinnedDay, input, lookup, used, random, run)
+      if (!day) {
+        failedDates.push(date)
+        continue
       }
-
-      for (const meal of ['lunch', 'dinner'] as const) {
-        if (hasMeal(events, date, meal, lookup)) continue
-        const choice = softPick(
-          mealCandidates(
-            date,
-            meal,
-            events,
-            places,
-            lookup,
-            settings,
-            foodUses,
-            matrix,
-            random,
-            dates[0],
-            dates.at(-1)!,
-          ),
-          random,
-          5,
-        )
-        if (choice) add(choice)
+      for (const event of day.events) {
+        if (!pinnedDay.some((previous) => previous.id === event.id)) events.push(event)
+        used.add(event.placeId)
       }
-
-      while (attractionCount() < limit) {
-        const needsAfternoon =
-          attractionCount() === limit - 1 &&
-          hasMeal(events, date, 'lunch', lookup) &&
-          !events.some(
-            (event) =>
-              event.date === date &&
-              lookup[event.placeId]?.kind !== 'food' &&
-              event.start >= 14 * 60,
-          )
-        const candidatesAt = (minimumStart: number) =>
-          bestAttractionCandidates(
-            date,
-            events,
-            places,
-            usedAttractions,
-            lookup,
-            settings,
-            foodUses,
-            matrix,
-            random,
-            false,
-            dates[0],
-            dates.at(-1)!,
-            minimumStart,
-          )
-        const afternoon = needsAfternoon ? candidatesAt(14 * 60) : []
-        const choice = softPick(afternoon.length ? afternoon : candidatesAt(9 * 60), random, 6)
-        if (!choice || choice.score < 8) break
-        add(choice)
-      }
+      score += dayScore(day.events, lookup, matrix)
     }
-
-    attempts.push({
-      score: itineraryScore(events, dates, lookup, matrix, settings),
-      events,
-    })
+    results.push({ events, failedDates, score: score + random() * 12 })
   }
 
-  attempts.sort((a, b) => b.score - a.score)
-  const best = attempts[0].score
-  const close = attempts.filter((attempt) => attempt.score >= best - 18).slice(0, 10)
-  const choice = softPick(close, random, 10) ?? attempts[0]
-  return choice.events.sort(
-    (a, b) => a.date.localeCompare(b.date) || a.start - b.start,
-  )
+  results.sort((a, b) => a.failedDates.length - b.failedDates.length || b.score - a.score)
+  const best = results[0]
+  const alternatives = results.filter((result) =>
+    result.failedDates.length === best.failedDates.length && result.score >= best.score - 13,
+  ).slice(0, 5)
+  const selected = alternatives[Math.floor(random() * alternatives.length)] ?? best
+  // This final audit is a safety net for a future data or algorithm change.
+  const safeEvents = selected.events.filter((event) => {
+    if (event.pinned) return true
+    return !selected.failedDates.includes(event.date)
+  })
+  const failedDates = [...new Set([...selected.failedDates, ...dates.filter((date) =>
+    !auditDay({
+      date, cityId, events: safeEvents, lookup, settings, matrix, quote,
+    }).complete,
+  )])]
+  return {
+    events: safeEvents.filter((event) => event.pinned || !failedDates.includes(event.date))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start),
+    failedDates: failedDates.sort(),
+  }
 }

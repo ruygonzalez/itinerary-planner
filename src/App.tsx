@@ -17,6 +17,7 @@ import { ArrowUpRight, Clock3, Footprints, ShieldCheck, Trash2 } from 'lucide-re
 import { useEffect, useState } from 'react'
 import { AddPlaceDialog } from './components/AddPlaceDialog'
 import { CalendarBoard } from './components/CalendarBoard'
+import { CitySelector } from './components/CitySelector'
 import { PIXELS_PER_MINUTE, type DragPreview } from './components/DayColumn'
 import { DateControls } from './components/DateControls'
 import { DiscoverPanel } from './components/DiscoverPanel'
@@ -28,7 +29,7 @@ import { KindIcon } from './components/KindIcon'
 import { PlaceDetailsDialog } from './components/PlaceDetailsDialog'
 import { Toast, type ToastMessage } from './components/Toast'
 import { TripOverview } from './components/TripOverview'
-import { places, placesById } from './data/places'
+import { destinations } from './data/destinations'
 import { usePlanner } from './hooks/usePlanner'
 import { downloadCalendar } from './lib/export'
 import { roundToQuarter } from './lib/dates'
@@ -59,15 +60,15 @@ function pointerPosition(event: DragMoveEvent | DragEndEvent): number | null {
   return event.active.rect.current.translated?.top ?? null
 }
 
-function previewFor(event: DragMoveEvent | DragEndEvent): DragPreview | null {
+function previewFor(event: DragMoveEvent | DragEndEvent, lookup: Record<string, Place>): DragPreview | null {
   const date = event.over?.data.current?.date as string | undefined
   const placeId = event.active.data.current?.placeId as string | undefined
-  if (!date || !placeId || !placesById[placeId]) return null
+  if (!date || !placeId || !lookup[placeId]) return null
   const lane = document.getElementById('lane-' + date)
   const y = pointerPosition(event)
   if (!lane || y === null) return null
   const top = lane.getBoundingClientRect().top
-  const place = placesById[placeId]
+  const place = lookup[placeId]
   const start = Math.max(
     DAY_START,
     Math.min(
@@ -80,6 +81,8 @@ function previewFor(event: DragMoveEvent | DragEndEvent): DragPreview | null {
 
 export default function App() {
   const planner = usePlanner()
+  const places = planner.places
+  const placesById = planner.lookup
   const [dialog, setDialog] = useState<Dialog>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [draggedPlaceId, setDraggedPlaceId] = useState<string | null>(null)
@@ -105,6 +108,12 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [dialog])
+
+  useEffect(() => {
+    setDialog(null)
+    setPreview(null)
+    setDraggedPlaceId(null)
+  }, [planner.cityId])
 
   useEffect(() => {
     if (!toast) return
@@ -133,9 +142,9 @@ export default function App() {
   const onDragStart = (event: DragStartEvent) => {
     setDraggedPlaceId((event.active.data.current?.placeId as string | undefined) ?? null)
   }
-  const onDragMove = (event: DragMoveEvent) => setPreview(previewFor(event))
+  const onDragMove = (event: DragMoveEvent) => setPreview(previewFor(event, placesById))
   const onDragEnd = (event: DragEndEvent) => {
-    const drop = previewFor(event)
+    const drop = previewFor(event, placesById)
     const eventId = event.active.data.current?.eventId as string | undefined
     const placeId = event.active.data.current?.placeId as string | undefined
     if (drop && placeId) {
@@ -173,6 +182,7 @@ export default function App() {
 
   return (
     <DndContext
+      key={planner.cityId}
       sensors={sensors}
       collisionDetection={collisionDetection}
       onDragStart={onDragStart}
@@ -181,27 +191,50 @@ export default function App() {
       onDragCancel={onDragCancel}
     >
       <Header
-        stopCount={planner.events.length}
+        stopCount={planner.allEvents.length}
         onHow={() => setDialog({ type: 'info', view: 'how' })}
         onSources={() => setDialog({ type: 'info', view: 'sources' })}
         onExport={() => {
-          if (!planner.events.length) return
-          downloadCalendar(planner.events, placesById)
-          notify('Calendar file downloaded. Times are set to Europe/Athens.')
+          if (!planner.allEvents.length) return
+          downloadCalendar(planner.allEvents, planner.allPlacesById)
+          notify('Calendar downloaded with local time zones for all three cities.')
         }}
       />
       <div className="app-shell">
-        <TripOverview startDate={planner.startDate} endDate={planner.endDate} dayCount={planner.dates.length} />
+        <TripOverview startDate={planner.startDate} endDate={planner.endDate} dayCount={planner.dates.length} city={planner.city} />
+        <CitySelector
+          selected={planner.cityId}
+          plans={planner.plans}
+          audits={planner.auditsByCity}
+          overlaps={planner.overlap}
+          onSelect={planner.setCity}
+          onGenerateAll={() => {
+            const results = planner.generateAll()
+            const failed = destinations.filter((city) => results[city.id].failedDates.length)
+            notify(
+              failed.length ? `Some days could not meet all rules: ${failed.map((city) => city.name).join(', ')}. Review the highlighted days.`
+                : 'Fresh, complete plans for all three cities. Pinned stops stayed put.',
+              failed.length ? 'warning' : 'success',
+            )
+          }}
+        />
         <main id="planner">
           <DateControls
             startDate={planner.startDate}
             endDate={planner.endDate}
             settings={planner.settings}
+            city={planner.city}
+            quote={planner.quote}
             onDates={planner.setDates}
             onSettings={planner.updateSettings}
             onGenerate={() => {
-              planner.generate()
-              notify('A fresh route is ready. Your pinned stops stayed put.')
+              const result = planner.generate()
+              notify(
+                result.failedDates.length
+                  ? `No compliant ${planner.city.name} route for ${result.failedDates.join(', ')}. Adjust caps, pins or tentative-hour settings.`
+                  : `A fresh ${planner.city.name} route is ready. Your pinned stops stayed put.`,
+                result.failedDates.length ? 'warning' : 'success',
+              )
             }}
           />
           <div className="trip-status">
@@ -211,6 +244,8 @@ export default function App() {
               <span className="status-divider">/</span>
               <span>{planner.events.length} planned stops</span>
               <span className="status-divider">/</span>
+              <span>{Object.values(planner.audits).filter((day) => day.complete).length}/{planner.dates.length} days meet all rules</span>
+              <span className="status-divider">/</span>
               <span><Footprints size={15} /> {tripWalking} min on foot</span>
             </div>
             <div className="status-right">
@@ -218,7 +253,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm('Clear all stops from this itinerary? Your dates and preferences will stay.')) {
+                  if (window.confirm(`Clear all ${planner.city.name} stops? Dates and preferences will stay.`)) {
                     planner.clear()
                     notify('Your calendar is clear. Start fresh with any place.')
                   }
@@ -232,6 +267,8 @@ export default function App() {
           <div className="workspace">
             <DiscoverPanel
               places={places}
+              city={planner.city}
+              quote={planner.quote}
               date={planner.activeDate}
               savedIds={planner.settings.savedIds}
               events={planner.events}
@@ -246,25 +283,32 @@ export default function App() {
               lookup={placesById}
               matrix={planner.matrix}
               routeStatus={planner.routeStatus}
+              city={planner.city}
+              audits={planner.audits}
               preview={preview}
               onSelectDate={planner.setActiveDate}
               onOpenStop={openEdit}
               onExplore={() => document.getElementById('discover-heading')?.scrollIntoView({ behavior: 'smooth' })}
             />
             <InsightsPanel
+              city={planner.city}
               date={planner.activeDate}
               stops={selectedStops}
               places={places}
               lookup={placesById}
               matrix={planner.matrix}
               routeStatus={planner.routeStatus}
+              audit={planner.audits[planner.activeDate]}
+              quote={planner.quote}
+              maxMealsUsd={planner.settings.maxMealsUsd}
+              maxActivitiesUsd={planner.settings.maxActivitiesUsd}
               onSources={() => setDialog({ type: 'info', view: 'sources' })}
             />
           </div>
         </main>
         <footer className="site-footer">
           <div><span className="footer-mark">✦</span><strong>atlas<span>.</span></strong> For the days you'll remember.</div>
-          <p><Clock3 size={14} /> Local Athens time · Hours checked Sep 2026 · Always reconfirm holiday openings</p>
+          <p><Clock3 size={14} /> {planner.city.country.timeZone} local time · Hours checked Sep 2026 · Confirm special openings</p>
           <button type="button" onClick={() => setDialog({ type: 'info', view: 'sources' })}>Data & credits <ArrowUpRight size={14} /></button>
         </footer>
       </div>
@@ -281,6 +325,8 @@ export default function App() {
         <PlaceDetailsDialog
           place={detailsPlace}
           date={planner.activeDate}
+          city={planner.city}
+          quote={planner.quote}
           onClose={closeDialog}
           onAdd={() => openAdd(detailsPlace)}
         />
@@ -318,7 +364,7 @@ export default function App() {
         />
       )}
       {dialog?.type === 'info' && (
-        <InfoDialog view={dialog.view} places={places} onClose={closeDialog} />
+        <InfoDialog view={dialog.view} places={destinations.flatMap((destination) => destination.places)} onClose={closeDialog} />
       )}
       <Toast message={toast} onClose={() => setToast(null)} />
     </DndContext>

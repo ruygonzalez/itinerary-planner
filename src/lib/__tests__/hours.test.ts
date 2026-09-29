@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { placesById } from '../../data/places'
 import { fitsOpeningHours, getAvailability } from '../hours'
+import { destinationById } from '../../data/destinations'
 
 describe('published and tentative opening hours', () => {
   it('keeps state archaeological sites closed on Christmas Day', () => {
@@ -41,5 +42,17 @@ describe('published and tentative opening hours', () => {
     expect(getAvailability(placesById.falafellas, '2026-12-25').status).toBe('tentative')
     expect(getAvailability(placesById.falafellas, '2026-12-27').status).toBe('closed')
     expect(getAvailability(placesById.plaka, '2026-12-25').status).toBe('flexible')
+  })
+
+  it('applies Cairo Friday split hours and Istanbul Sunday/Tuesday closures', () => {
+    const cairo = destinationById.cairo.lookup
+    const istanbul = destinationById.istanbul.lookup
+    expect(getAvailability(cairo['cairo-islamic-art'], '2026-12-25').windows).toEqual([
+      { open: 540, close: 690 }, { open: 810, close: 1020 },
+    ])
+    expect(getAvailability(cairo['cairo-abou-tarek'], '2026-12-25').status).toBe('open')
+    expect(getAvailability(istanbul['istanbul-grand-bazaar'], '2026-12-27').status).toBe('closed')
+    expect(getAvailability(istanbul['istanbul-topkapi'], '2026-12-29').status).toBe('closed')
+    expect(getAvailability(istanbul['istanbul-sehzade'], '2026-12-27').status).toBe('closed')
   })
 })

@@ -11,9 +11,9 @@ export function Header({ stopCount, onHow, onSources, onExport }: HeaderProps) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <a className="brand" href="#top" aria-label="Atlas Athens, back to top">
+        <a className="brand" href="#top" aria-label="Atlas three-city planner, back to top">
           <span className="brand-mark" aria-hidden="true">✦</span>
-          <span>atlas<span className="brand-dot">.</span><small>ATHENS</small></span>
+          <span>atlas<span className="brand-dot">.</span><small>THREE CITIES</small></span>
         </a>
         <nav className="header-links" aria-label="Main navigation">
           <a className="active-link" href="#planner">The planner</a>

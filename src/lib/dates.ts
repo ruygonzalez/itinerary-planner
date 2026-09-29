@@ -1,5 +1,3 @@
-export const DEFAULT_START = '2026-12-22'
-export const DEFAULT_END = '2026-12-25'
 export const MAX_DAYS = 14
 
 const oneDay = 24 * 60 * 60 * 1000

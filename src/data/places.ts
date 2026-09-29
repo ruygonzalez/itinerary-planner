@@ -1,10 +1,10 @@
-import type { Place } from '../types'
+import type { Place, PlaceDraft } from '../types'
 import { foodPlaces } from './food'
 import { W, combine, everyDay, heritage, official, onDays, publicWalk, season } from './schedules'
 
 const stateClosures = ['01-01', '03-25', '05-01', '12-25', '12-26']
 
-export const places: Place[] = [
+const athensDrafts: PlaceDraft[] = [
   {
     id: 'acropolis',
     name: 'The Acropolis',
@@ -40,6 +40,7 @@ export const places: Place[] = [
     reviewUrl:
       'https://www.tripadvisor.co.uk/Attraction_Review-g189400-d735521-Reviews-Acropolis_Museum-Athens_Attica.html',
     cost: 'ticket',
+    ticketPrice: 20,
     tags: ['Art', 'Ancient history', 'Indoors'],
     priority: 5,
     hours: official(
@@ -426,6 +427,23 @@ export const places: Place[] = [
   },
   ...foodPlaces,
 ]
+
+export const places: Place[] = athensDrafts.map((draft) => ({
+  ...draft,
+  cityId: 'athens',
+  price: draft.price ?? (
+    draft.cost === 'ticket' && draft.ticketPrice !== undefined
+      ? {
+          amount: draft.ticketPrice,
+          currency: 'EUR',
+          basis: 'published-admission',
+          sourceUrl: draft.hours.sourceUrl,
+          checkedOn: draft.hours.checkedOn,
+          note: 'Listed adult admission; confirm price and any discount before booking.',
+        }
+      : undefined
+  ),
+}))
 
 export const placesById: Record<string, Place> = Object.fromEntries(
   places.map((place) => [place.id, place]),

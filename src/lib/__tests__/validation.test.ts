@@ -37,7 +37,7 @@ describe('manual drop and move validation', () => {
       validatePlacement({ ...base, place: lookup.acropolis, date: '2026-12-25', start: 540 }).message,
     ).toMatch(/closed/)
     expect(
-      validatePlacement({ ...base, place: lookup.acropolis, date: '2026-12-22', start: 540 }).message,
+      validatePlacement({ ...base, place: lookup.acropolis, date: '2026-12-23', start: 540 }).message,
     ).toMatch(/already/)
     expect(
       validatePlacement({ ...base, place: lookup['acropolis-museum'], date: '2026-12-23', start: 600 }).message,
@@ -77,6 +77,16 @@ describe('manual drop and move validation', () => {
       date: '2026-12-25',
       start: 780,
     })
-    expect(result).toMatchObject({ ok: true, tentative: true })
+    expect(result).toMatchObject({ ok: true, tentative: true, meal: 'lunch' })
+  })
+
+  it('assigns breakfast by time and rejects a restaurant outside its meal window', () => {
+    const bakery = lookup['takis-bakery']
+    expect(validatePlacement({
+      ...dates, events: [], lookup, place: bakery, date: '2026-12-22', start: 495,
+    })).toMatchObject({ ok: true, meal: 'breakfast' })
+    expect(validatePlacement({
+      ...dates, events: [], lookup, place: bakery, date: '2026-12-22', start: 765,
+    }).ok).toBe(false)
   })
 })

@@ -21,15 +21,15 @@ export function InfoDialog({ view, places, onClose }: InfoDialogProps) {
     <Modal title={view === 'how' ? 'Good plans leave room to wander.' : 'The real-world details.'} onClose={onClose} wide>
       {view === 'how' ? (
         <div className="how-grid">
-          <div><Clock3 size={24} /><h3>Hours first</h3><p>Stops must fit the published hours, weekly closures and known holiday exceptions. Christmas Eve at the Acropolis Museum ends at 15:00.</p></div>
-          <div><Footprints size={24} /><h3>Walks count</h3><p>We request a walking-time table from an OpenStreetMap foot router. If it's offline, the app uses a clearly labeled distance estimate.</p></div>
-          <div><Shuffle size={24} /><h3>Thoughtful variety</h3><p>Random-restart planning balances ratings, interests, meal windows, variety and travel. Generate again for a close-but-different route.</p></div>
-          <div><Heart size={24} /><h3>Make it yours</h3><p>Save favorites to give them priority. Drag or add a stop to pin it; pinned stops stay when you regenerate. Your plan stays in this browser.</p></div>
+          <div><Clock3 size={24} /><h3>Hours first</h3><p>Every stop fits a local opening window. Museum closures, December exceptions and restaurant meal-time service are checked by city.</p></div>
+          <div><Footprints size={24} /><h3>Three meals, close by</h3><p>Each generated day has one breakfast, lunch and dinner. A restaurant must be within 25 walking minutes and 1.8 km of the neighboring activities; no activity is required before breakfast or after dinner.</p></div>
+          <div><Shuffle size={24} /><h3>Budgeted variety</h3><p>Multi-start beam search tries different complete plans, checks all hard rules and enforces your separate per-person USD meal and activity caps. An infeasible day is flagged, not presented as a valid suggestion.</p></div>
+          <div><Heart size={24} /><h3>Make it yours</h3><p>Drag or tap to add and pin a stop. Manual changes remain flexible, while the day audit flags missing meals, long meal walks, costs, closures and transfer gaps. Each city plan stays in this browser.</p></div>
         </div>
       ) : (
         <div className="sources-body">
           <p>We checked these public sources on September 29, 2026. Operating hours can change. “Official” refers to the venue's recurring schedule, not a guarantee of a future one-off change.</p>
-          <div className="source-warning"><TriangleAlert size={18} /><span>Private restaurants have no published December 24–25, 2026 exceptions yet. Their regular hours are shown as tentative on those dates. Call ahead before relying on a meal stop.</span></div>
+          <div className="source-warning"><TriangleAlert size={18} /><span>Athens and Cairo both include December 24. These are separate city-day plans; flights and airport transfers are not modeled. Athens restaurant holiday hours are tentative. Check special service before travel.</span></div>
           <h3>Official hours</h3>
           <div className="sources-grid">
             {officialSources.map((source) => (
@@ -37,8 +37,8 @@ export function InfoDialog({ view, places, onClose }: InfoDialogProps) {
             ))}
           </div>
           <h3>Reviews, prices & places</h3>
-          <p>Restaurant ratings and inexpensive “£” price tiers are a September 2026 snapshot from Tripadvisor, linked on each place card. Public walks use suggested planning windows; they are not ticketed venue schedules. Walking routes use OpenStreetMap data; map tiles are by Esri and its credited data contributors.</p>
-          <p>All displayed times are local clock times in Athens. No account, API key, or location permission is needed. Plans are saved only in your browser.</p>
+          <p>Restaurant ratings and regular hours are a September 2026 listing snapshot. Food amounts are per-person planning estimates or midpoints of published ranges, not actual average receipts; ticketed stops with unknown prices stay out of generated budget plans. See each place's details for the separate hours and price links. Public walks use suggested windows, not venue hours.</p>
+          <p>USD conversion uses the latest available open.er-api.com rate or a dated fallback. Each calendar leg uses its own IANA time zone (Athens, Cairo or Istanbul). Walking routes use OpenStreetMap data, the basemap credits Esri and other data contributors, and plans are stored only in your browser.</p>
         </div>
       )}
     </Modal>

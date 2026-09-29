@@ -3,9 +3,13 @@ import { ArrowUpRight, Check, GripVertical, Heart, Plus, Star } from 'lucide-rea
 import type { Place } from '../types'
 import { getAvailability } from '../lib/hours'
 import { KindIcon } from './KindIcon'
+import type { CityGuide } from '../domain/CityGuide'
+import { formatUsd, toUsd, type ExchangeQuote } from '../services/exchange'
 
 interface PlaceCardProps {
   place: Place
+  city: CityGuide
+  quote: ExchangeQuote
   date: string
   saved: boolean
   planned: boolean
@@ -16,6 +20,8 @@ interface PlaceCardProps {
 
 export function PlaceCard({
   place,
+  city,
+  quote,
   date,
   saved,
   planned,
@@ -30,7 +36,7 @@ export function PlaceCard({
   const availability = getAvailability(place, date)
   const kindLabel =
     place.kind === 'food'
-      ? 'BUDGET EAT'
+      ? place.mealSlots?.includes('breakfast') ? 'BREAKFAST & FOOD' : 'LOCAL FOOD'
       : place.kind === 'outdoors'
         ? 'OPEN AIR'
         : place.kind === 'museum'
@@ -49,12 +55,12 @@ export function PlaceCard({
       <div className="place-main">
         <div className="place-topline">
           <span className="place-category">{kindLabel}</span>
-          <span className="place-rating"><Star size={12} fill="currentColor" /> {place.rating.toFixed(1)}</span>
+          {place.reviewCount > 0 && <span className="place-rating"><Star size={12} fill="currentColor" /> {place.rating.toFixed(1)}</span>}
         </div>
         <button className="place-title" type="button" onClick={onDetails}>
           {place.name} <ArrowUpRight size={14} aria-hidden="true" />
         </button>
-        <p>{place.area} <span aria-hidden="true">·</span> {place.duration} min <span aria-hidden="true">·</span> {place.cost === 'budget' ? 'Budget' : place.cost === 'free' ? 'Free' : 'Ticketed'}</p>
+        <p>{place.area} <span aria-hidden="true">·</span> {place.duration} min</p>
         <div className="place-bottomline">
           <span className={'hours-badge status-' + availability.status}>
             <span aria-hidden="true" />
@@ -67,6 +73,11 @@ export function PlaceCard({
                   : 'Flexible'}
           </span>
           {planned && place.kind !== 'food' && <span className="planned-badge"><Check size={12} /> In plan</span>}
+          <span className="price-badge" title={place.price?.note ?? 'Ticket price not verified; excluded from budgeted suggestions'}>
+            {place.cost === 'free' ? 'Free' : place.price
+              ? `${city.formatPrice(place.price.amount)} ≈ ${formatUsd(toUsd(place.price.amount, place.price.currency, quote))}`
+              : 'Price unverified'}
+          </span>
         </div>
       </div>
       <div className="place-actions">

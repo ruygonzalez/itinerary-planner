@@ -6,6 +6,7 @@ import { getAvailability } from '../lib/hours'
 import { getTravelLeg } from '../lib/travel'
 import { DAY_END, DAY_START } from '../lib/validation'
 import { CalendarEvent } from './CalendarEvent'
+import type { DayAudit } from '../lib/audit'
 
 export const PIXELS_PER_MINUTE = 1
 
@@ -22,6 +23,7 @@ interface DayColumnProps {
   lookup: Record<string, Place>
   matrix: TravelMatrix
   preview: DragPreview | null
+  audit?: DayAudit
   onSelect: () => void
   onOpenStop: (stop: ScheduledStop) => void
   onEmptyAdd: () => void
@@ -34,6 +36,7 @@ export function DayColumn({
   lookup,
   matrix,
   preview,
+  audit,
   onSelect,
   onOpenStop,
   onEmptyAdd,
@@ -55,6 +58,9 @@ export function DayColumn({
       <button className="day-heading" type="button" onClick={onSelect} aria-label={'Select ' + dateLabel(date, { weekday: 'long', month: 'long', day: 'numeric' })}>
         <span className="day-heading-top"><span>{dayName}</span><span>{ordered.length} {ordered.length === 1 ? 'stop' : 'stops'}</span></span>
         <span className="day-heading-date"><strong>{dayNumber}</strong><span>{month}</span></span>
+        <span className={'day-rule-status' + (audit?.complete ? ' ready' : '')}>
+          {audit?.complete ? '✓ Requirements met' : `${(audit?.meals.breakfast ?? 0) + (audit?.meals.lunch ?? 0) + (audit?.meals.dinner ?? 0)}/3 meals · Check rules`}
+        </span>
         {tentativeCount > 0 && <span className="day-caution">{tentativeCount} to confirm</span>}
       </button>
       <div
@@ -96,6 +102,7 @@ export function DayColumn({
               <CalendarEvent
                 stop={stop}
                 place={place}
+                invalid={audit?.issues.some((issue) => issue.severity === 'error' && issue.stopIds?.includes(stop.id)) ?? false}
                 top={(stop.start - DAY_START) * PIXELS_PER_MINUTE}
                 height={stop.duration * PIXELS_PER_MINUTE}
                 onOpen={() => onOpenStop(stop)}

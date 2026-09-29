@@ -1,27 +1,29 @@
 import { ArrowDownRight, CalendarDays, MapPin, Sparkles } from 'lucide-react'
 import { dateLabel } from '../lib/dates'
+import type { CityGuide } from '../domain/CityGuide'
 
 interface TripOverviewProps {
   startDate: string
   endDate: string
   dayCount: number
+  city: CityGuide
 }
 
-export function TripOverview({ startDate, endDate, dayCount }: TripOverviewProps) {
+export function TripOverview({ startDate, endDate, dayCount, city }: TripOverviewProps) {
   const start = dateLabel(startDate, { month: 'short', day: 'numeric' })
   const end = dateLabel(endDate, { month: 'short', day: 'numeric', year: 'numeric' })
   return (
-    <section className="hero" id="top" aria-labelledby="hero-heading">
+    <section className={'hero hero-' + city.id} id="top" aria-labelledby="hero-heading">
       <div className="hero-copy">
-        <div className="hero-eyebrow"><Sparkles size={14} aria-hidden="true" /> THE CITY, YOUR WAY</div>
-        <h1 id="hero-heading">Make room<br />for <em>wonder.</em></h1>
-        <p>Ancient stories, little detours, and really good food. A smarter way to spend your days in Athens.</p>
+        <div className="hero-eyebrow"><Sparkles size={14} aria-hidden="true" /> THREE CITIES, YOUR WAY</div>
+        <h1 id="hero-heading">Make room<br />for <em>{city.name}.</em></h1>
+        <p>{city.subtitle}</p>
         <div className="hero-bottom">
           <span className="hero-trip-chip"><CalendarDays size={16} /> {start} – {end}</span>
-          <span className="hero-trip-chip"><MapPin size={16} /> {dayCount} {dayCount === 1 ? 'day' : 'days'} in Athens</span>
+          <span className="hero-trip-chip"><MapPin size={16} /> {dayCount} {dayCount === 1 ? 'day' : 'days'} in {city.country.name}</span>
         </div>
       </div>
-      <img src="/athens-hero.svg" alt="Illustration of the Acropolis above Athens rooftops at golden hour" />
+      <img src={city.hero} alt={city.heroAlt} />
       <a className="hero-scroll" href="#planner" aria-label="Jump to the itinerary planner"><ArrowDownRight size={20} /></a>
     </section>
   )

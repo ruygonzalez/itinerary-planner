@@ -7,9 +7,15 @@ import {
   parseDate,
   weekday,
 } from '../dates'
+import { destinations } from '../../data/destinations'
 
-describe('Athens-local calendar dates', () => {
-  it('includes both ends of the default four-day trip', () => {
+describe('city-local calendar dates', () => {
+  it('includes both ends of each three-day city leg', () => {
+    expect(destinations.map((city) => datesInRange(city.dates.start, city.dates.end))).toEqual([
+      ['2026-12-22', '2026-12-23', '2026-12-24'],
+      ['2026-12-24', '2026-12-25', '2026-12-26'],
+      ['2026-12-27', '2026-12-28', '2026-12-29'],
+    ])
     expect(datesInRange('2026-12-22', '2026-12-25')).toEqual([
       '2026-12-22',
       '2026-12-23',

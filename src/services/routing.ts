@@ -1,7 +1,7 @@
 import type { Place, TravelMatrix } from '../types'
 import { estimatedLeg } from '../lib/travel'
 
-const cacheVersion = 'atlas-athens-foot-v1'
+const cacheVersion = 'atlas-foot-v2-'
 const maxCacheAge = 7 * 24 * 60 * 60 * 1000
 
 interface CachedMatrix {
@@ -38,9 +38,9 @@ function validSquare(values: unknown, size: number): values is number[][] {
   )
 }
 
-function readCache(key: string, size: number): TravelMatrix | null {
+function readCache(key: string, size: number, cityId: string): TravelMatrix | null {
   try {
-    const value = localStorage.getItem(cacheVersion)
+    const value = localStorage.getItem(cacheVersion + cityId)
     if (!value) return null
     const cached = JSON.parse(value) as CachedMatrix
     if (
@@ -60,8 +60,10 @@ function readCache(key: string, size: number): TravelMatrix | null {
 }
 
 export async function fetchWalkingMatrix(places: Place[]): Promise<TravelMatrix> {
+  if (!places.length) return estimatedMatrix(places)
+  const cityId = places[0].cityId
   const key = matrixKey(places)
-  const cached = readCache(key, places.length)
+  const cached = readCache(key, places.length, cityId)
   if (cached) return cached
 
   const coordinates = places
@@ -98,7 +100,7 @@ export async function fetchWalkingMatrix(places: Place[]): Promise<TravelMatrix>
     }
     try {
       localStorage.setItem(
-        cacheVersion,
+        cacheVersion + cityId,
         JSON.stringify({ key, storedAt: Date.now(), matrix } satisfies CachedMatrix),
       )
     } catch {

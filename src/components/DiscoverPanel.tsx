@@ -2,12 +2,16 @@ import { Heart, Search, SlidersHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { Place, ScheduledStop } from '../types'
 import { PlaceCard } from './PlaceCard'
+import type { CityGuide } from '../domain/CityGuide'
+import type { ExchangeQuote } from '../services/exchange'
 
 interface DiscoverPanelProps {
   places: Place[]
   date: string
   savedIds: string[]
   events: ScheduledStop[]
+  city: CityGuide
+  quote: ExchangeQuote
   onSave: (id: string) => void
   onDetails: (place: Place) => void
   onAdd: (place: Place) => void
@@ -28,6 +32,8 @@ export function DiscoverPanel({
   date,
   savedIds,
   events,
+  city,
+  quote,
   onSave,
   onDetails,
   onAdd,
@@ -103,6 +109,8 @@ export function DiscoverPanel({
             <PlaceCard
               key={place.id}
               place={place}
+              city={city}
+              quote={quote}
               date={date}
               saved={savedIds.includes(place.id)}
               planned={plannedIds.has(place.id)}

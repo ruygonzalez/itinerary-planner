@@ -9,31 +9,38 @@ import {
   useMap,
 } from 'react-leaflet'
 import type { Place, ScheduledStop } from '../types'
+import type { CityGuide } from '../domain/CityGuide'
 
 type Point = [number, number]
 
-function FitStops({ points }: { points: Point[] }) {
+function FitStops({ points, center }: { points: Point[]; center: Point }) {
   const map = useMap()
   const key = points.map((point) => point.join(',')).join('|')
   useEffect(() => {
+    // Automatic fitting must not leave a zoom animation running while the
+    // selected city or day replaces the markers and map container.
+    map.stop()
     if (points.length > 1) {
-      map.fitBounds(latLngBounds(points), { padding: [34, 34], maxZoom: 14 })
+      map.fitBounds(latLngBounds(points), { padding: [34, 34], maxZoom: 14, animate: false })
     } else if (points.length === 1) {
-      map.setView(points[0], 14)
+      map.setView(points[0], 14, { animate: false })
     } else {
-      map.setView([37.9746, 23.728], 13)
+      map.setView(center, 13, { animate: false })
     }
-  }, [key, map]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, map, center[0], center[1]]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
 
 export function MapPanel({
   stops,
   lookup,
+  city,
 }: {
   stops: ScheduledStop[]
   lookup: Record<string, Place>
+  city: CityGuide
 }) {
+  const center: Point = [city.center.lat, city.center.lng]
   const ordered = useMemo(
     () => [...stops].sort((a, b) => a.start - b.start).filter((stop) => lookup[stop.placeId]),
     [stops, lookup],
@@ -50,7 +57,8 @@ export function MapPanel({
   return (
     <div className="map-shell" aria-label="Map of selected day's stops">
       <MapContainer
-        center={[37.9746, 23.728]}
+        key={city.id}
+        center={center}
         zoom={13}
         scrollWheelZoom={false}
         className="route-map"
@@ -62,7 +70,7 @@ export function MapPanel({
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
         />
-        <FitStops points={points} />
+        <FitStops points={points} center={center} />
         {points.length > 1 && (
           <Polyline positions={points} pathOptions={{ color: '#b7654c', weight: 3, opacity: 0.8, dashArray: '5 7' }} />
         )}
@@ -85,7 +93,7 @@ export function MapPanel({
           )
         })}
       </MapContainer>
-      {!ordered.length && <span className="map-empty">Your Athens route will appear here.</span>}
+      {!ordered.length && <span className="map-empty">Your {city.name} route will appear here.</span>}
     </div>
   )
 }

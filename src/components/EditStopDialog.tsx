@@ -60,13 +60,14 @@ export function EditStopDialog({
 
   return (
     <Modal title={place.name} onClose={onClose}>
-      <p className="modal-intro">{place.tagline}. Move this stop without losing sight of opening times and walking gaps.</p>
+      <p className="modal-intro">{place.tagline}. Move this stop without losing sight of opening times and walking gaps. The day audit updates after you save.</p>
       <div className="modal-form-grid">
         <label><span><CalendarDays size={15} /> Day</span><select name="edit-day" value={date} onChange={(event) => { setDate(event.target.value); setError('') }}>{dates.map((day) => <option key={day} value={day}>{dateLabel(day, { weekday: 'long', month: 'long', day: 'numeric' })}</option>)}</select></label>
         <label><span><Clock3 size={15} /> Start time</span><input name="edit-time" type="time" step="900" value={time} onChange={(event) => { setTime(event.target.value); setError('') }} /></label>
       </div>
       <div className={'modal-availability status-' + availability.status}><strong>{availability.label}</strong><span>{availability.note}</span></div>
       {availability.status === 'tentative' && <p className="modal-warning"><TriangleAlert size={16} /> Confirm holiday hours with the venue.</p>}
+      {validation.ok && validation.meal && <p className="meal-assignment">This stop counts as <strong>{validation.meal}</strong>{validation.meal === 'snack' ? ', not a required meal' : ''}.</p>}
       {!validation.ok && <p className="modal-validation" role="alert">{validation.message}</p>}
       {error && <p className="modal-validation" role="alert">{error}</p>}
       <button type="button" className="modal-primary" onClick={save} disabled={!validation.ok}>Save time & day</button>

@@ -1,10 +1,10 @@
-# Athens data sources
+# Three-city data sources and confidence
 
-Checked September 29, 2026. The app links each venue's hours and review source again in its details dialog. This is a dated snapshot, not a promise that future special opening times will remain unchanged.
+Checked September 29, 2026 for Athens (Dec 22–24), Cairo (Dec 24–26), and Istanbul (Dec 27–29), 2026. Each venue's details dialog links its hours, reviews, and price basis. This is a dated snapshot, not a promise that future special opening times, tickets, or menu prices will remain unchanged. The overlapping Athens/Cairo date is deliberately shown as a warning: the app does not model flights or transfers between cities.
 
-## Official opening hours
+## Athens: published opening hours
 
-| Venue | Published winter schedule relevant to Dec 22–25 | Source |
+| Venue | Published winter schedule relevant to Dec 22–24 | Source |
 | --- | --- | --- |
 | Acropolis | Daily 08:00–17:00; closed Dec 25–26; last admission 20 min before closing | [Hellenic Heritage](https://www.hh.gr/en/destinations/acropolis-of-athens/) |
 | Ancient Agora | Daily 08:00–17:00; closed Dec 25–26; last admission 20 min before closing | [Hellenic Heritage](https://www.hh.gr/en/destinations/ancient-agora-athens/) |
@@ -20,7 +20,7 @@ Official sites also publish seasonal summer schedules, fixed public-holiday clos
 
 ## Budget food listings
 
-The following restaurant listings supplied the displayed Tripadvisor rating, review count, inexpensive "£" tier, regular weekly hours, and geographic coordinates. Ratings and prices can change. None of these listings confirmed **December 24–25, 2026 special hours** as of the check date, so the app flags those dates as tentative rather than asserting they are open.
+The following restaurant listings supplied the displayed Tripadvisor rating, review count, inexpensive tier, regular weekly hours, and geographic coordinates. Ratings and prices can change. None of these listings confirmed **December 24, 2026 special hours** as of the check date, so the app flags that date as tentative rather than asserting they are open. The tier is not a numeric menu price; numeric planning estimates are distinguished below.
 
 | Food stop | Rating snapshot | Review / regular-hours listing |
 | --- | ---: | --- |
@@ -34,6 +34,41 @@ The following restaurant listings supplied the displayed Tripadvisor rating, rev
 | Cookoomela Grill | 4.7 | [Tripadvisor](https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d14043008-Reviews-Cookoomela_Grill-Athens_Attica.html) |
 | Lukumades | 4.6 | [Tripadvisor](https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d5993987-Reviews-Lukumades-Athens_Attica.html) |
 | To Koulouri tou Psyrri | 4.6 | [Tripadvisor](https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d12132014-Reviews-To_Koulouri_tou_Psyrri-Athens_Attica.html) |
+| Takis Bakery | 4.7 | [Tripadvisor](https://www.tripadvisor.ca/Restaurant_Review-g189400-d7158734-Reviews-Takis_Bakery-Athens_Attica.html) |
+
+## Cairo: published and listed availability
+
+| Place | Data in the planner | Source |
+| --- | --- | --- |
+| Giza Pyramids plateau | Daily 08:00–16:00; EGP 700 foreign adult plateau admission; pyramid interiors cost extra | [Egyptian Ministry of Tourism and Antiquities](https://egymonuments.gov.eg/en/archaeological-sites/giza-plateau/) |
+| Citadel of Saladin | Daily 08:00–17:00; EGP 550 foreign adult | [Egyptian Ministry of Tourism and Antiquities](https://egymonuments.gov.eg/en/archaeological-sites/cairo-citadel/) |
+| National Museum of Egyptian Civilization | 09:00–17:00, plus Friday 18:00–21:00; EGP 550 foreign adult | [Museum hours](https://nmec.gov.eg/opening-hours/) · [Official ticket portal](https://egymonuments.com/nmec/tickets) |
+| Egyptian Museum at Tahrir | Listed regular hours 09:00–17:00; EGP 550 foreign adult; **reconfirm non-Ramadan hours** because the museum page currently emphasizes a shorter Ramadan schedule | [Museum visitor and ticket page](https://egyptianmuseumcairo.eg/ticket-opening-hours/) |
+| Grand Egyptian Museum | Gallery hours 09:00–18:00 most days, 09:00–21:00 Wednesdays/Saturdays, last entry an hour before close; no reliable foreign-adult ticket amount in this snapshot, so **excluded from budgeted generation** | [Official ticket site](https://tickets.gem.eg/) |
+| Museum of Islamic Art | Generally 09:00–17:00, with Friday prayer interval 11:30–13:30; current admission unverified, so **excluded from budgeted generation** | [Museum website](https://miaegypt.org/) |
+
+Cairo restaurants' regular service hours, positions, rating snapshots, and meal choices are sourced from their individual [Koshary Abou Tarek](https://www.tripadvisor.ca/Restaurant_Review-g294201-d1508799-Reviews-Koshary_Abou_Tarek-Cairo_Cairo_Governorate.html), [El Abd Pastry](https://www.tripadvisor.ca/Restaurant_Review-g294201-d2727225-Reviews-El_Abd_Pastry-Cairo_Cairo_Governorate.html), [Eish & Malh](https://www.tripadvisor.ca/Restaurant_Review-g294201-d7916160-Reviews-Eish_Malh-Cairo_Cairo_Governorate.html), [Zooba](https://www.tripadvisor.co.za/Restaurant_Review-g294201-d3398031-Reviews-Zooba-Cairo_Cairo_Governorate.html), [Fasahet Somaya](https://www.tripadvisor.ca/Restaurant_Review-g294201-d7380286-Reviews-Fasahet_Somaya-Cairo_Cairo_Governorate.html), and [Naguib Mahfouz Café](https://www.tripadvisor.ca/Restaurant_Review-g294201-d1944490-Reviews-Khan_El_Khalili_Restaurant_Naguib_Mahfouz_Cafe-Cairo_Cairo_Governorate.html) listings. Their displayed per-person costs are illustrative estimates except Abou Tarek and Naguib Mahfouz Café, whose numeric [EGP 1–200](https://restaurantguru.com/Abou-Tarek-Cairo) and [EGP 200–1,400](https://restaurantguru.com/Naguib-Mahfouz-Cafe-Cairo) listing ranges supply midpoints. Not all are equally inexpensive; set a cap to rule out costly choices. Egypt's Coptic Christmas is January 7, so the planner does not assume December 25 restaurant closures in Cairo. Confirm individual holiday hours directly.
+
+The downtown Nile, Tahrir, and Qasr el Nil points use [OpenStreetMap](https://www.openstreetmap.org/) positions; [Historic Cairo's UNESCO page](https://whc.unesco.org/en/list/89/) provides context for Al-Muizz Street. Khan el-Khalili represents public market lanes, not a guarantee that shops are open. Giza and Fustat are distant from downtown and require transport that this walking planner does not schedule or price.
+
+## Istanbul: published and listed availability
+
+| Place | Data in the planner | Source |
+| --- | --- | --- |
+| Topkapı Palace | Ticket booth 09:00–17:00, **closed Tuesday**; foreign adult palace/Harem/Hagia Irene combined admission TRY 2,750 in the checked price list | [National Palaces visitor page](https://www.millisaraylar.gov.tr/Lokasyon/2/topkapi-sarayi) |
+| Istanbul Archaeological Museums | Listed 09:00–18:45 daily; current foreign-adult admission unverified, so **excluded from budgeted generation** | [Turkish Museums visitor page](https://muze.gov.tr/muze-detay?SectionId=IAR01&DistId=IAR) |
+| Grand Bazaar | Main market typically Mon–Sat 09:00–19:00, **closed Sunday**; individual stalls vary | [Istanbul visitor guide](https://istanbul.com/grand-bazaar) |
+
+The eight Istanbul food listings provide regular hours, locations, and rating/review snapshots: [Çiğdem Pastanesi](https://www.tripadvisor.co.za/Restaurant_Review-g293974-d1820330-Reviews-Cigdem_Pastanesi-Istanbul.html), [Evin Bakery](https://www.tripadvisor.co.za/Restaurant_Review-g293974-d6212860-Reviews-EVIN_BAKERY_EATERY-Istanbul.html), [Hafız Mustafa Sirkeci](https://www.tripadvisor.ca/Restaurant_Review-g293974-d1749881-Reviews-Hafiz_Mustafa_1864_Sirkeci-Istanbul.html), [Tarihi Sultanahmet Köftecisi](https://www.tripadvisor.ca/Restaurant_Review-g293974-d1228891-Reviews-Tarihi_Sultanahmet_Koftecisi-Istanbul.html), [Şehzade Cağ Kebap](https://www.tripadvisor.ca/Restaurant_Review-g293974-d2288800-Reviews-Sehzade_Cag_Kebap-Istanbul.html), [Hocapaşa Pidecisi](https://www.tripadvisor.ca/Restaurant_Review-g293974-d2359659-Reviews-Hocapasa_Pidecisi-Istanbul.html), [Dürümzade](https://www.tripadvisor.co.za/Restaurant_Review-g293974-d2221573-Reviews-Durumzade-Istanbul.html), and [Rafi Café](https://www.tripadvisor.ca/Restaurant_Review-g293974-d26517589-Reviews-Rafi_Cafe_Resto_Karakoy-Istanbul.html). The [TRY 400–600 listed band for Hocapaşa Pidecisi](https://restaurantguru.com/Hocapasa-Pidecisi-Istanbul) supplies a midpoint; other displayed amounts are illustrative meal budgets, not measured averages. Rafi's perfect listed rating has a **small review sample (9)**.
+
+[UNESCO's Historic Areas of Istanbul](https://whc.unesco.org/en/list/356/) provides context for its squares, bridges, parks, and exterior views. Those stops have *suggested* visit windows. The app does **not** imply interior access or free admission to Hagia Sophia's gallery, the Blue Mosque at prayer time, or Galata Tower. Bazaar and restaurant hours are subject to change.
+
+## Per-person pricing and currency conversion
+
+- Paid attraction prices above and those in each Athens place's linked hours source are published adult admissions where available. Free *exterior/public* activities are $0; paid interiors are not silently treated as free. Unverified admissions are explicitly **unknown**, not $0.
+- Athens food range midpoints: [Falafellas €1–5](https://restaurantguru.com/Falafellas-Athens), [Feyrouz €5–10](https://restaurantguru.com/Feyrouz-Athens), and [Street Souvlaki €5–10](https://restaurantguru.com/Street-Souvlaki-Athens). All other food amounts are marked as illustrative one-person meal budgets based on linked restaurant/menu listings. A Tripadvisor "inexpensive" tier does **not** establish an average receipt. Drinks, taxes, tips, exchange spreads, and booking fees can change the total.
+- [ExchangeRate-API's keyless open USD feed](https://open.er-api.com/v6/latest/USD) supplies EUR, EGP, and TRY per USD, and the app divides a local-currency cost by that rate. A validated response is cached 24 hours. If unavailable, a dated 2026-09-29 fallback is shown: USD 1 = EUR 0.879241, EGP 52.070874, TRY 48.997476. With no trusted current price or rate, any budget comparison is an **estimate**, not a spending guarantee.
+- The generator enforces separate per-day USD meal and activity limits. Manually placed items over a limit remain visible with a rule violation. It refuses to mark a day containing an unpriced paid venue budget-complete. Breakfast/lunch/dinner are explicit roles, not inferred from the restaurant's name.
 
 ## Travel and map
 

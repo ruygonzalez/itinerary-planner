@@ -11,9 +11,10 @@ interface CalendarEventProps {
   top: number
   height: number
   onOpen: () => void
+  invalid: boolean
 }
 
-export function CalendarEvent({ stop, place, top, height, onOpen }: CalendarEventProps) {
+export function CalendarEvent({ stop, place, top, height, onOpen, invalid }: CalendarEventProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: 'event:' + stop.id,
     data: { type: 'event', eventId: stop.id, placeId: place.id },
@@ -28,7 +29,8 @@ export function CalendarEvent({ stop, place, top, height, onOpen }: CalendarEven
         'calendar-event kind-' +
         place.kind +
         (compact ? ' compact' : '') +
-        (isDragging ? ' dragging' : '')
+        (isDragging ? ' dragging' : '') +
+        (invalid ? ' needs-attention' : '')
       }
       style={{ top, height: Math.max(28, height - 4) }}
     >
@@ -38,8 +40,9 @@ export function CalendarEvent({ stop, place, top, height, onOpen }: CalendarEven
         onClick={onOpen}
         aria-label={
           timeLabel(stop.start) +
-          ' ' +
+          ' ' + (stop.meal ? stop.meal + ' at ' : '') +
           place.name +
+          (invalid ? ', requirements need attention' : '') +
           (tentative ? ', holiday hours unconfirmed' : '') +
           '. Open details'
         }
@@ -49,7 +52,7 @@ export function CalendarEvent({ stop, place, top, height, onOpen }: CalendarEven
           {timeLabel(stop.start)} – {timeLabel(stop.start + stop.duration)}
           {tentative && <TriangleAlert size={11} aria-label="Holiday hours unconfirmed" />}
         </span>
-        <strong>{place.name}</strong>
+        <strong>{stop.meal && stop.meal !== 'snack' ? `${stop.meal[0].toUpperCase() + stop.meal.slice(1)} · ` : ''}{place.name}</strong>
         {!compact && (
           <span className="event-subtitle">
             {tentative ? 'Call ahead · ' : ''}{place.area}

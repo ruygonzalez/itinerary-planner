@@ -66,7 +66,7 @@ export function AddPlaceDialog({
 
   return (
     <Modal title={'Add ' + place.name} onClose={onClose}>
-      <p className="modal-intro">Choose a day and a start time. We'll check the venue's hours, your other stops, and the walk between them.</p>
+      <p className="modal-intro">Choose a day and a start time. We'll check the venue's hours and walking gaps. The daily audit will flag any missing meal, distant restaurant or budget overage after you add it.</p>
       <div className="modal-form-grid">
         <label><span><CalendarDays size={15} /> Day</span><select name="add-day" value={date} onChange={(event) => setDate(event.target.value)}>{dates.map((day) => <option key={day} value={day}>{dateLabel(day, { weekday: 'long', month: 'long', day: 'numeric' })}</option>)}</select></label>
         <label><span><Clock3 size={15} /> Start time</span><input name="add-time" type="time" step="900" value={time} onChange={(event) => { setTime(event.target.value); setError('') }} /></label>
@@ -76,6 +76,7 @@ export function AddPlaceDialog({
         <span>{availability.note}</span>
       </div>
       {availability.status === 'tentative' && <p className="modal-warning"><TriangleAlert size={16} /> Holiday hours are not confirmed. This stop will be marked “call ahead.”</p>}
+      {validation.ok && validation.meal && <p className="meal-assignment">Counts as <strong>{validation.meal}</strong>{validation.meal === 'snack' ? ' (not one of the three required meals)' : ''}.</p>}
       {!validation.ok && <p className="modal-validation" role="alert">{validation.message}</p>}
       {error && <p className="modal-validation" role="alert">{error}</p>}
       <button type="button" className="modal-primary" onClick={submit} disabled={!validation.ok}><Plus size={18} /> Add this stop</button>

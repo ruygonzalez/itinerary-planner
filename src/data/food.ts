@@ -1,18 +1,36 @@
-import type { Place, WeeklyHours } from '../types'
+import type { PlaceDraft, PriceQuote, WeeklyHours } from '../types'
 import { combine, everyDay, listedRestaurant, onDays } from './schedules'
+import { listedRange, menuEstimate } from './prices'
 
-type Restaurant = Omit<Place, 'kind' | 'cost' | 'hours'> & { weekly: WeeklyHours }
+type Restaurant = Omit<PlaceDraft, 'kind' | 'cost' | 'hours' | 'price'> & { weekly: WeeklyHours }
 
-function restaurant({ weekly, ...details }: Restaurant): Place {
+const mealPrices: Record<string, PriceQuote> = {
+  falafellas: listedRange(3, 'EUR', 'https://restaurantguru.com/Falafellas-Athens', 'Midpoint of the listed €1–€5 per-person band for a falafel wrap.'),
+  feyrouz: listedRange(7.5, 'EUR', 'https://restaurantguru.com/Feyrouz-Athens', 'Midpoint of the listed €5–€10 per-person band.'),
+  'street-souvlaki': listedRange(7.5, 'EUR', 'https://restaurantguru.com/Street-Souvlaki-Athens', 'Midpoint of the listed €5–€10 per-person band.'),
+  'rhino-vegan': menuEstimate(11, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d14142081-Reviews-Rhino_Vegan_Beat_Athens-Athens_Attica.html'),
+  'to-kati-allo': menuEstimate(14, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d2108580-Reviews-To_Kati_Allo-Athens_Attica.html'),
+  'mama-tierra': menuEstimate(12, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d23997166-Reviews-Mama_Tierra_Acropolis-Athens_Attica.html'),
+  lefteris: menuEstimate(8, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d6731564-Reviews-Lefteris_O_Politis-Athens_Attica.html'),
+  cookoomela: menuEstimate(9, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d14043008-Reviews-Cookoomela_Grill-Athens_Attica.html'),
+  lukumades: menuEstimate(5, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d5993987-Reviews-Lukumades-Athens_Attica.html', 'Illustrative dessert-and-drink budget; a snack does not count as a required meal.'),
+  koulouri: menuEstimate(4, 'EUR', 'https://www.tripadvisor.co.uk/Restaurant_Review-g189400-d12132014-Reviews-To_Koulouri_tou_Psyrri-Athens_Attica.html', 'Illustrative bakery breakfast; not a published average receipt.'),
+  'takis-bakery': menuEstimate(7, 'EUR', 'https://www.tripadvisor.ca/Restaurant_Review-g189400-d7158734-Reviews-Takis_Bakery-Athens_Attica.html', 'Illustrative pastry-and-drink breakfast; not a published average receipt.'),
+}
+
+function restaurant({ weekly, ...details }: Restaurant): PlaceDraft {
+  const price = mealPrices[details.id]
+  if (!price) throw new Error(`Missing food price for ${details.id}`)
   return {
     ...details,
     kind: 'food',
     cost: 'budget',
+    price,
     hours: listedRestaurant(details.reviewUrl, weekly),
   }
 }
 
-export const foodPlaces: Place[] = [
+export const foodPlaces: PlaceDraft[] = [
   restaurant({
     id: 'falafellas',
     name: 'Falafellas',
@@ -200,5 +218,21 @@ export const foodPlaces: Place[] = [
     priority: 4.1,
     mealSlots: ['breakfast', 'snack'],
     weekly: everyDay(0, 1439),
+  }),
+  restaurant({
+    id: 'takis-bakery',
+    name: 'Takis Bakery',
+    area: 'Koukaki',
+    tagline: 'A warm pastry before the ruins',
+    description: 'An early bakery near the Acropolis Museum, useful for a quick breakfast before a timed visit.',
+    duration: 35,
+    coordinates: { lat: 37.96767, lng: 23.7268 },
+    rating: 4.7,
+    reviewCount: 171,
+    reviewUrl: 'https://www.tripadvisor.ca/Restaurant_Review-g189400-d7158734-Reviews-Takis_Bakery-Athens_Attica.html',
+    tags: ['Bakery', 'Breakfast', 'Quick bite'],
+    priority: 4.5,
+    mealSlots: ['breakfast'],
+    weekly: combine(onDays([1, 2, 3, 4, 5], 420, 1260), onDays([6], 420, 1020)),
   }),
 ]

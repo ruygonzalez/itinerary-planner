@@ -1,67 +1,59 @@
-# Atlas Athens
+# Atlas · Three Cities
 
-A responsive, multi-day Athens itinerary planner built with React, TypeScript, and Vite. Pick from 16 real sights and outdoor walks plus 10 highly rated, inexpensive food stops. The starting trip is **December 22–25, 2026, inclusive**.
+A responsive itinerary planner for **Athens (December 22–24), Cairo (December 24–26), and Istanbul (December 27–29, 2026)**. Each city has its own editable, multi-day calendar, nearby restaurant suggestions, daily budgets, and a randomized route generator. The app is built with React, TypeScript, and Vite and runs entirely in your browser.
 
-## Run locally
+## Run it locally
 
 Requires Node.js 20.19+ or 22.12+ and npm.
 
-~~~bash
+```bash
+git clone https://github.com/ruygonzalez/itinerary-planner.git
+cd itinerary-planner
 npm ci
 npm run dev
-~~~
+```
 
-Open the URL printed by Vite (usually <http://localhost:5173/>). If that port is busy, Vite uses the next available port. This workspace currently runs the app at <http://localhost:5174/>.
+Open the address Vite prints (usually <http://localhost:5173/>). No account, API key, database, or server-side secret is required. Your plans and preferences are saved in this browser's local storage. **Export plan** downloads an `.ics` calendar containing all three cities, with each event in its city's local time zone.
 
-No API key, database, account, or server-side secret is needed. The app saves the itinerary in this browser's local storage. "Export plan" downloads an .ics calendar using the Europe/Athens time zone.
+The default dates are independent city plans, not a connected flight itinerary. **December 24 overlaps Athens and Cairo**; the planner warns about this and does not schedule or price intercity travel. Shorten one leg to leave a real transfer day before relying on both plans. Each leg's dates can be changed to any inclusive range of up to 14 days.
 
-## Plan a trip
+## What you can do
 
-- Choose an inclusive date range of up to 14 days, pace, and interest. Tap **Generate a route** for a new variation.
-- Search or filter real places. Drag a card into a calendar day, or tap **+** to choose a day and time. Drag a scheduled stop to move it, or tap it for keyboard/touch-friendly editing.
-- The planner rejects confirmed closures, visits outside opening hours, overlapping stops, repeated non-food attractions, and transfers without enough walking time.
-- Manually added or moved stops are pinned. A generated stop can be pinned in its details; pinned stops survive regeneration. Saving a place gives it priority in future generated routes.
-- Food stops are first-class calendar events, with lunch and dinner windows. Tripadvisor's inexpensive "£" category is a price **tier**, not a quoted GBP or euro menu price.
+- Switch among the three cities without losing your work. Search/filter real sights, outdoor walks, and restaurants; drag a card into a day or use its **+** button. Move an event by dragging or edit it through its dialog (including on touch and keyboard). Pin stops to keep them on regeneration and save favorites to influence suggestions.
+- Set separate **maximum meal and activity costs per person, per day in USD** for each city. Local-currency admission prices and per-person restaurant estimates are converted using a public USD exchange feed, cached for 24 hours; an explicitly dated offline-rate snapshot is used when it is unavailable. The UI shows the source/date of the rate and a local-currency equivalent of each cap.
+- Generate a varied itinerary for a city, or regenerate all three. Generated **complete** days have exactly one breakfast, lunch, and dinner; meals fit the venue's listed service hours and meal window, stay within 25 walking minutes **and** 1.8 km of the nearest attraction before/after them, and include at least two non-meal activities around lunch. Breakfast need not have a preceding activity, and dinner need not have a following one.
+- Check opening hours, weekly closures, last admission, known holiday exceptions, visit durations, walking transfers, and separate daily budget caps. Generation uses a randomized beam search that favors highly rated/interesting places and neighborhood variety while enforcing these constraints. If no complete route fits (for example, a $0 meal cap), it reports that day instead of presenting an invalid suggestion as complete.
+- Build your own calendar. Confirmed closures, overlaps, and insufficient transfer time are rejected on placement; the **day-by-day rule checklist** flags missing/duplicate meals, unsuitable serving times, distant meals, unverified prices, and over-budget manual choices. Manual stops are pinned. Tentative holiday restaurant hours are clearly labeled, and you can exclude them from generated suggestions.
 
-## What the algorithm considers
+The travel matrix comes from the community-operated [OpenStreetMap-based pedestrian router](https://routing.openstreetmap.de/) and is cached for seven days. When routing is unavailable, the app labels and uses a conservative walking approximation. A long car/transit trip (notably Giza or Fustat from central Cairo) may not fit this walking-focused planner; arrange those transfers separately. Map lines connect stops in order and are not exact street routes.
 
-The generator tries 16 randomized complete itineraries and selects a high-scoring near-best one. It schedules the most constrained days first (so Christmas Day doesn't consume closed museums), anchors a morning sight, fits distinct lunch and dinner venues, and inserts the remaining stops around those commitments. Hard constraints cover weekly/seasonal hours, published holiday closures, Christmas Eve exceptions, last admission, event duration, and travel buffers. Soft scoring balances ratings, saved places, stated interests, category variety, meal variety, walking distance, holiday uncertainty, and some breathing room in the afternoon. A different random seed produces a slightly different feasible plan on each click.
+## Price and availability caveats
 
-The app requests one walking-time/distance matrix for its curated places from the public OpenStreetMap-based foot router at routing.openstreetmap.de. It caches a successful result for seven days. If the service is unavailable, it uses an explicitly labeled, conservative straight-line estimate with a street-detour factor. Routes and timing are **walking-focused**; the map connects stops in order and does not claim to draw the exact walking path. For a long leg, consider transit or a taxi separately.
+Venue information was checked **September 29, 2026**. Published admission is included when available. Restaurant amounts are either the midpoint of a listed per-person price range or an **illustrative one-person meal estimate** from a listing/menu; they are **not measured average bills**. Unpriced paid attractions remain browsable but cannot be used to claim a budget-compliant generated day. The USD exchange rate changes, and prices, tickets, availability, and special holiday hours can change too.
 
-## Data honesty
+Public squares, streets, mosque exteriors, and other unticketed walks use *suggested planning windows*, not invented official opening times. Restaurant holiday service on Athens December 24 remains unconfirmed; check directly with the business. Cairo December 25 is **not** treated as a universal closure (Egyptian Coptic Christmas is January 7). Check tickets, opening times, reservations, and any December holiday changes shortly before traveling. See [DATA_SOURCES.md](DATA_SOURCES.md) and individual place details for links and the distinction between published and estimated data.
 
-Schedules and ratings were checked on **September 29, 2026**. Major attractions use official published hours, including the Acropolis Museum's 09:00–15:00 Christmas Eve hours and known December 25–26 closures. Restaurant ratings, inexpensive price tiers, and regular hours come from their linked Tripadvisor listings. **December 24–25, 2026 restaurant exceptions had not been published**; those meals are marked *holiday hours unconfirmed / call ahead*. You can exclude tentative holiday meals from generated routes. Public streets and hills have suggested planning windows, not invented formal operating hours. The National Garden's daylight window is an estimate; check its gates locally. All times shown are local clock times in Athens.
+## Code organization
 
-This is a planning aid, not a live reservation or real-time opening-hours guarantee. Always confirm tickets, special closures, and holiday restaurant service shortly before visiting. See [DATA_SOURCES.md](DATA_SOURCES.md) for links and field provenance.
-
-## Code map
-
-| Area | Responsibility |
+| Location | Responsibility |
 | --- | --- |
-| src/data/places.ts, food.ts, schedules.ts | Curated venues, coordinates, reviews, and sourced schedules |
-| src/lib/hours.ts, dates.ts | Seasonal/holiday availability in Athens-local calendar dates |
-| src/lib/validation.ts, travel.ts | Placement constraints and walking legs |
-| src/lib/generator.ts | Random-restart, multi-day itinerary search |
-| src/services/routing.ts | One-shot foot-route matrix, seven-day cache, offline fallback |
-| src/hooks/usePlanner.ts | Planner state, persistence, pinning, additions, moves |
-| src/components/ | Reusable catalog, calendar, map, settings, dialogs, and feedback |
-| src/lib/export.ts | Athens-time-zone calendar export |
+| `src/domain/Country.ts`, `CityGuide.ts` | Country currency/time zone and city-owned venue collections |
+| `src/data/` | Per-city attractions/restaurants, prices, sourced operating schedules |
+| `src/lib/hours.ts`, `meals.ts`, `validation.ts`, `audit.ts`, `costs.ts` | Hours, meal roles/proximity, placement checks, daily rule checklist and USD budgets |
+| `src/lib/generator.ts` | Randomized constrained multi-day beam search |
+| `src/services/routing.ts`, `exchange.ts` | Walking matrix and USD currency rates, with labeled fallbacks |
+| `src/hooks/usePlanner.ts`, `src/lib/storage.ts` | Independent city plans, migration, persistence, edits and pinning |
+| `src/components/`, `src/styles/` | Responsive catalog, maps, calendar, settings, dialogs and feedback |
+| `src/lib/export.ts` | Multi-time-zone calendar export |
 
-## Checks
+## Check the project
 
-~~~bash
+```bash
 npm run typecheck
 npm test
 npm run build
-~~~
+```
 
-The optional browser smoke test exercises desktop drag/drop, a rejected Christmas closure, pinned regeneration, and mobile layout. With the dev server running and a Chrome/Chromium instance exposing CDP on port 9222:
+An optional browser smoke test covers city switching, meals, budgets, closures, drag/drop, export, and mobile layout. With the dev server running and a Chrome/Chromium instance exposing CDP on port 9222, run `npm run verify:ui`. Set `SITE_URL` or `CDP_URL` to use other endpoints; `EVIDENCE_DIR` optionally saves screenshots. It opens fresh browser contexts and will not overwrite your existing plan.
 
-~~~bash
-npm run verify:ui
-~~~
-
-Set SITE_URL or CDP_URL to use different endpoints. Set EVIDENCE_DIR to save desktop and mobile screenshots locally. The smoke test uses fresh browser contexts, so it does not overwrite an existing personal itinerary.
-
-The illustrated Athens hero and app code are original. The map uses Esri Light Gray tiles with the provider/data attribution visible in the map; walking routes use OpenStreetMap contributors' data. Internet access is needed for the map tiles and exact foot-route matrix, but itinerary editing and the fallback estimator work without them.
+The illustrations and planner code are original. Map tiles use Esri Light Gray Canvas, with provider/data credits visible on the map. Internet access is needed for map tiles, fresh exchange rates, and exact walking routes; the editor and labeled fallbacks still work offline.

@@ -1,5 +1,8 @@
 export type PlaceKind = 'sight' | 'museum' | 'outdoors' | 'food'
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export type RequiredMeal = Exclude<MealSlot, 'snack'>
+export type CityId = 'athens' | 'cairo' | 'istanbul'
+export type CurrencyCode = 'EUR' | 'EGP' | 'TRY'
 export type Pace = 'easy' | 'balanced' | 'full'
 export type Interest = 'all' | 'history' | 'art' | 'outdoors' | 'food'
 export type HoursStatus = 'open' | 'closed' | 'tentative' | 'flexible'
@@ -43,8 +46,19 @@ export interface OpeningRules {
   note?: string
 }
 
+export interface PriceQuote {
+  /** A per-person planning amount in the city's local currency. */
+  amount: number
+  currency: CurrencyCode
+  basis: 'published-admission' | 'listed-range-midpoint' | 'menu-estimate'
+  sourceUrl: string
+  checkedOn: string
+  note: string
+}
+
 export interface Place {
   id: string
+  cityId: CityId
   name: string
   area: string
   tagline: string
@@ -56,12 +70,16 @@ export interface Place {
   reviewCount: number
   reviewUrl: string
   cost: 'free' | 'ticket' | 'budget'
+  price?: PriceQuote
+  /** Kept for the original Athens catalog; normalized to a PriceQuote by the city guide. */
   ticketPrice?: number
   tags: string[]
   priority: number
   mealSlots?: MealSlot[]
   hours: OpeningRules
 }
+
+export type PlaceDraft = Omit<Place, 'cityId'>
 
 export interface Availability {
   status: HoursStatus
@@ -80,6 +98,8 @@ export interface ScheduledStop {
   duration: number
   pinned: boolean
   origin: 'manual' | 'generated'
+  /** Explicit role: a breakfast restaurant cannot silently count as lunch. */
+  meal?: MealSlot
 }
 
 export interface TravelMatrix {
@@ -100,13 +120,21 @@ export interface PlanSettings {
   interest: Interest
   includeTentativeMeals: boolean
   savedIds: string[]
+  maxMealsUsd: number
+  maxActivitiesUsd: number
 }
 
-export interface PlannerSnapshot {
-  version: 1
+export interface CityPlan {
   startDate: string
   endDate: string
   activeDate: string
   events: ScheduledStop[]
   settings: PlanSettings
+  generatedOnce: boolean
+}
+
+export interface PlannerSnapshot {
+  version: 2
+  selectedCity: CityId
+  plans: Record<CityId, CityPlan>
 }

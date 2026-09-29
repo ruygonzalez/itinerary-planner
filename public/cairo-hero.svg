@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" role="img" aria-labelledby="title desc">
+  <title id="title">Cairo at golden hour</title>
+  <desc id="desc">Illustrated Nile, Cairo skyline, and the distant pyramids at sunset.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6d5649"/><stop offset=".55" stop-color="#b68058"/><stop offset="1" stop-color="#eac895"/></linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#659185"/><stop offset="1" stop-color="#315c61"/></linearGradient>
+    <pattern id="grain" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="7" r=".8" fill="#fff6df" opacity=".22"/><circle cx="14" cy="13" r=".7" fill="#fff6df" opacity=".16"/></pattern>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h820v430H0z"/>
+  <circle cx="660" cy="107" r="70" fill="#f8dbaa" opacity=".24"/><circle cx="660" cy="107" r="48" fill="#f7dbab"/>
+  <path d="M0 241c114-20 237-9 344 16 139-25 310-28 476-7v180H0z" fill="#aa9075" opacity=".62"/>
+  <path d="M408 251 482 143l78 108zm116 0 62-89 67 89zm-174 0 41-59 44 59z" fill="#e4c69a" stroke="#cfab7d" stroke-width="2"/>
+  <path d="M0 286c127-24 229-23 337-7 163-34 328-26 483 10v141H0z" fill="#766b5c"/>
+  <g fill="#d7b48a"><path d="M6 265h44v47H6zM56 272h75v40H56zM137 253h41v59h-41zM185 276h51v36h-51zM243 263h72v49h-72zM608 258h48v54h-48zM661 271h64v41h-64zM729 253h70v59h-70z"/></g>
+  <g fill="#f3d6a5"><path d="M74 249h12v58H74zM69 250l11-15 11 15zM275 242h11v64h-11zM270 244l11-18 10 18zM687 248h12v63h-12zM682 249l11-16 11 16z"/></g>
+  <path d="M0 307c170-19 327 8 460-11 125-18 256-7 360 13v121H0z" fill="url(#water)"/>
+  <path d="M0 328c165-13 290 12 414-4 158-20 262-8 406 7" fill="none" stroke="#a7bc9f" stroke-width="3" opacity=".5"/>
+  <path d="M0 367c161-17 286 13 440-6 152-19 261-7 380 3" fill="none" stroke="#d4bf99" stroke-width="2" opacity=".5"/>
+  <path d="m500 330 145 0-20 15H520z" fill="#2c4d4b"/><path d="M565 258v72m0-66-48 59h48m0-50 62 50h-62" fill="#ead6ad" stroke="#ead6ad" stroke-width="2"/>
+  <path d="m151 381 90 0-13 10h-63z" fill="#243f46"/><path d="M196 336v45m0-39-36 35h36" fill="#e9d4b0" stroke="#e9d4b0" stroke-width="2"/>
+  <path fill="url(#grain)" d="M0 0h820v430H0z"/>
+</svg>

@@ -3,6 +3,8 @@ import type { Place, ScheduledStop, TravelMatrix } from '../types'
 import { dateLabel } from '../lib/dates'
 import { DAY_END, DAY_START } from '../lib/validation'
 import { DayColumn, type DragPreview } from './DayColumn'
+import type { CityGuide } from '../domain/CityGuide'
+import type { DayAudit } from '../lib/audit'
 
 interface CalendarBoardProps {
   dates: string[]
@@ -11,6 +13,8 @@ interface CalendarBoardProps {
   lookup: Record<string, Place>
   matrix: TravelMatrix
   routeStatus: 'loading' | 'routed' | 'estimated'
+  city: CityGuide
+  audits: Record<string, DayAudit>
   preview: DragPreview | null
   onSelectDate: (date: string) => void
   onOpenStop: (stop: ScheduledStop) => void
@@ -24,6 +28,8 @@ export function CalendarBoard({
   lookup,
   matrix,
   routeStatus,
+  city,
+  audits,
   preview,
   onSelectDate,
   onOpenStop,
@@ -46,7 +52,7 @@ export function CalendarBoard({
       </div>
       <div className="board-subline">
         <span><Hand size={15} /> Drag places onto a day, then drag again to move them.</span>
-        <span className="time-zone">All times · Athens local</span>
+        <span className="time-zone">All times · {city.country.timeZone}</span>
       </div>
       <div className="mobile-day-tabs" role="tablist" aria-label="Choose a day to view">
         {dates.map((date) => (
@@ -64,12 +70,12 @@ export function CalendarBoard({
         ))}
       </div>
       {routeStatus === 'loading' && !count && (
-        <div className="routing-note"><Sparkles size={16} /> Finding a lovely first route through Athens…</div>
+        <div className="routing-note"><Sparkles size={16} /> Checking walking routes through {city.name}…</div>
       )}
       <div className="calendar-scroll">
         <div className="calendar-grid" style={{ '--day-count': dates.length } as React.CSSProperties}>
           <div className="time-axis">
-            <div className="axis-heading">ATHENS<br />TIME</div>
+            <div className="axis-heading">{city.name.toUpperCase()}<br />TIME</div>
             <div className="axis-body" style={{ height: DAY_END - DAY_START }}>
               {hours.map((hour) => (
                 <span key={hour} className="axis-label" style={{ top: hour - DAY_START }}>
@@ -87,6 +93,7 @@ export function CalendarBoard({
               lookup={lookup}
               matrix={matrix}
               preview={preview}
+              audit={audits[date]}
               onSelect={() => onSelectDate(date)}
               onOpenStop={onOpenStop}
               onEmptyAdd={onExplore}

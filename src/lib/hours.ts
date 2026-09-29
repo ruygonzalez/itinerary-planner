@@ -24,7 +24,11 @@ function hoursDescription(windows: TimeWindow[]): string {
   return windows.map(({ open, close }) => timeLabel(open) + '–' + timeLabel(close)).join(', ')
 }
 
-const holidayCautionDays = new Set(['12-24', '12-25', '12-26', '12-31', '01-01'])
+const holidayCautionDays = {
+  athens: new Set(['12-24', '12-25', '12-26', '12-31', '01-01']),
+  cairo: new Set(['01-01', '01-07']),
+  istanbul: new Set(['12-31', '01-01']),
+}
 
 export function getAvailability(place: Place, date: string): Availability {
   const common = {
@@ -61,7 +65,8 @@ export function getAvailability(place: Place, date: string): Availability {
 
   if (
     place.hours.holidayUnconfirmed &&
-    (holidayCautionDays.has(day) || movableHoliday(date, 'orthodox-easter'))
+    (holidayCautionDays[place.cityId].has(day) ||
+      (place.cityId === 'athens' && movableHoliday(date, 'orthodox-easter')))
   ) {
     return {
       ...common,

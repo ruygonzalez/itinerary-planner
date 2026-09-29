@@ -1,12 +1,16 @@
-import { CalendarDays, ChevronDown, RotateCw, Sparkles } from 'lucide-react'
+import { CalendarDays, ChevronDown, Coins, RotateCw, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Interest, Pace, PlanSettings } from '../types'
 import { dateRangeError } from '../lib/dates'
+import type { CityGuide } from '../domain/CityGuide'
+import type { ExchangeQuote } from '../services/exchange'
 
 interface DateControlsProps {
   startDate: string
   endDate: string
   settings: PlanSettings
+  city: CityGuide
+  quote: ExchangeQuote
   onDates: (start: string, end: string) => string | null
   onSettings: (changes: Partial<PlanSettings>) => void
   onGenerate: () => void
@@ -22,6 +26,8 @@ export function DateControls({
   startDate,
   endDate,
   settings,
+  city,
+  quote,
   onDates,
   onSettings,
   onGenerate,
@@ -29,12 +35,28 @@ export function DateControls({
   const [draftStart, setDraftStart] = useState(startDate)
   const [draftEnd, setDraftEnd] = useState(endDate)
   const [error, setError] = useState('')
+  const [mealCap, setMealCap] = useState(String(settings.maxMealsUsd))
+  const [activityCap, setActivityCap] = useState(String(settings.maxActivitiesUsd))
   const changed = draftStart !== startDate || draftEnd !== endDate
 
   useEffect(() => {
     setDraftStart(startDate)
     setDraftEnd(endDate)
   }, [startDate, endDate])
+
+  useEffect(() => {
+    setMealCap(String(settings.maxMealsUsd))
+    setActivityCap(String(settings.maxActivitiesUsd))
+  }, [settings.maxMealsUsd, settings.maxActivitiesUsd, city.id])
+
+  const updateCap = (value: string, key: 'maxMealsUsd' | 'maxActivitiesUsd') => {
+    if (key === 'maxMealsUsd') setMealCap(value)
+    else setActivityCap(value)
+    const amount = Number(value)
+    if (value !== '' && Number.isFinite(amount) && amount >= 0 && amount <= 5000) {
+      onSettings({ [key]: amount })
+    }
+  }
 
   const applyDates = () => {
     const issue = dateRangeError(draftStart, draftEnd) ?? onDates(draftStart, draftEnd)
@@ -101,6 +123,12 @@ export function DateControls({
             <Sparkles size={18} aria-hidden="true" /> Generate a route <RotateCw size={15} aria-hidden="true" />
           </button>
         </div>
+      </div>
+      <div className="budget-controls" aria-label="Daily budgets per person">
+        <div className="budget-heading"><Coins size={18} /><div><strong>Set your daily limits</strong><span>Per person. Converted from {city.country.currency} using the latest available USD rate.</span></div></div>
+        <label><span>Meals / day · USD</span><span className="budget-input-wrap"><span>$</span><input type="number" name="meal-budget" aria-label="Maximum meal cost per day in USD" min="0" max="5000" step="0.5" value={mealCap} onChange={(event) => updateCap(event.target.value, 'maxMealsUsd')} onBlur={() => setMealCap(String(settings.maxMealsUsd))} /></span><small>≈ {city.formatPrice(settings.maxMealsUsd * quote.perUsd[city.country.currency])}</small></label>
+        <label><span>Activities / day · USD</span><span className="budget-input-wrap"><span>$</span><input type="number" name="activity-budget" aria-label="Maximum activities cost per day in USD" min="0" max="5000" step="0.5" value={activityCap} onChange={(event) => updateCap(event.target.value, 'maxActivitiesUsd')} onBlur={() => setActivityCap(String(settings.maxActivitiesUsd))} /></span><small>≈ {city.formatPrice(settings.maxActivitiesUsd * quote.perUsd[city.country.currency])}</small></label>
+        <p>Estimated venue costs; real bills and ticket prices may change. Rate: {quote.asOf}{quote.source === 'snapshot' ? ' (offline snapshot)' : quote.source === 'cached' ? ' (cached)' : ' (live feed)'}.</p>
       </div>
       <label className="holiday-toggle">
         <input

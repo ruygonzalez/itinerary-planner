@@ -57,7 +57,7 @@ export function Modal({ title, onClose, children, wide = false }: ModalProps) {
     >
       <div ref={dialogRef} className={'modal-card' + (wide ? ' wide' : '')} role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-top">
-          <span className="eyebrow dark">ATLAS ATHENS</span>
+          <span className="eyebrow dark">ATLAS · THREE CITIES</span>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close dialog" autoFocus><X size={20} /></button>
         </div>
         <h2 id="modal-title">{title}</h2>
