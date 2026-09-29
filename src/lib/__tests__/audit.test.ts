@@ -55,6 +55,17 @@ describe('visible manual-itinerary requirements', () => {
     expect(unpriced.issues.map((issue) => issue.code)).toContain('unknown-cost')
   })
 
+  it('flags attractions repeated on another day and walking that exceeds the chosen distance', () => {
+    const repeat = { ...valid[1], id: 'another-tahrir', date: '2026-12-25' }
+    const audit = check([...valid, repeat], { maxWalkingMeters: 100 })
+    expect(audit.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'duplicate-activity', 'walking-budget',
+    ]))
+    expect(audit.walking.onSite.minutes).toBeGreaterThan(0)
+    expect(audit.walking.transfers.minutes).toBeGreaterThan(0)
+    expect(audit.walking.minutes).toBe(audit.walking.onSite.minutes + audit.walking.transfers.minutes)
+  })
+
   it('calls out the shared Athens/Cairo departure date', () => {
     expect(overlappingCityDates([
       { cityId: 'athens', dates: ['2026-12-22', '2026-12-24'] },

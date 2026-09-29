@@ -1,10 +1,11 @@
 import { CalendarDays, Clock3, Pin, PinOff, Trash2, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
-import type { Place, ScheduledStop, TravelMatrix } from '../types'
+import type { Place, PlanSettings, ScheduledStop, TravelMatrix } from '../types'
 import { dateLabel, minuteFromTime, timeLabel } from '../lib/dates'
 import { getAvailability } from '../lib/hours'
 import { validatePlacement, type PlacementResult } from '../lib/validation'
 import { Modal } from './Modal'
+import type { ExchangeQuote } from '../services/exchange'
 
 interface EditStopDialogProps {
   stop: ScheduledStop
@@ -13,6 +14,8 @@ interface EditStopDialogProps {
   events: ScheduledStop[]
   lookup: Record<string, Place>
   matrix: TravelMatrix
+  settings: PlanSettings
+  quote: ExchangeQuote
   onMove: (date: string, start: number) => PlacementResult
   onPin: () => void
   onRemove: () => void
@@ -26,6 +29,8 @@ export function EditStopDialog({
   events,
   lookup,
   matrix,
+  settings,
+  quote,
   onMove,
   onPin,
   onRemove,
@@ -49,6 +54,8 @@ export function EditStopDialog({
           startDate: dates[0],
           endDate: dates.at(-1)!,
           ignoreId: stop.id,
+          settings,
+          quote,
         })
 
   const save = () => {
@@ -60,7 +67,7 @@ export function EditStopDialog({
 
   return (
     <Modal title={place.name} onClose={onClose}>
-      <p className="modal-intro">{place.tagline}. Move this stop without losing sight of opening times and walking gaps. The day audit updates after you save.</p>
+      <p className="modal-intro">{place.tagline}. Move this stop while checking hours, available spending, and the day's walking distance.</p>
       <div className="modal-form-grid">
         <label><span><CalendarDays size={15} /> Day</span><select name="edit-day" value={date} onChange={(event) => { setDate(event.target.value); setError('') }}>{dates.map((day) => <option key={day} value={day}>{dateLabel(day, { weekday: 'long', month: 'long', day: 'numeric' })}</option>)}</select></label>
         <label><span><Clock3 size={15} /> Start time</span><input name="edit-time" type="time" step="900" value={time} onChange={(event) => { setTime(event.target.value); setError('') }} /></label>

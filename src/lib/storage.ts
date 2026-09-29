@@ -1,4 +1,5 @@
-import type { CityId, CityPlan, Pace, PlanSettings, PlannerSnapshot, ScheduledStop } from '../types'
+import type { CityId, CityPlan, DistanceUnit, Pace, PlanSettings, PlannerSnapshot, ScheduledStop } from '../types'
+import { MAX_WALKING_METERS } from './distance'
 import { allPlacesById, destinationById, destinations } from '../data/destinations'
 import { dateRangeError, datesInRange } from './dates'
 import { resolveMealSlot } from './meals'
@@ -8,11 +9,13 @@ const athensLegacyKey = 'atlas-athens-planner-v1'
 const cityIds = new Set<CityId>(['athens', 'cairo', 'istanbul'])
 const paces = new Set<Pace>(['easy', 'balanced', 'full'])
 const interests = new Set(['all', 'history', 'art', 'outdoors', 'food'])
+const distanceUnits = new Set<DistanceUnit>(['steps', 'feet', 'miles', 'km'])
 
 export function defaultSettings(): PlanSettings {
   return {
     pace: 'balanced', interest: 'all', includeTentativeMeals: true,
     savedIds: [], maxMealsUsd: 35, maxActivitiesUsd: 65,
+    maxWalkingMeters: 10000, distanceUnit: 'km',
   }
 }
 
@@ -68,6 +71,12 @@ function safeSettings(value: Partial<PlanSettings> | undefined, cityId: CityId):
       : [],
     maxMealsUsd: cap(value?.maxMealsUsd, defaults.maxMealsUsd),
     maxActivitiesUsd: cap(value?.maxActivitiesUsd, defaults.maxActivitiesUsd),
+    maxWalkingMeters: typeof value?.maxWalkingMeters === 'number' &&
+      Number.isFinite(value.maxWalkingMeters) && value.maxWalkingMeters >= 0 &&
+      value.maxWalkingMeters <= MAX_WALKING_METERS
+      ? value.maxWalkingMeters : defaults.maxWalkingMeters,
+    distanceUnit: distanceUnits.has(value?.distanceUnit as DistanceUnit)
+      ? value!.distanceUnit! : defaults.distanceUnit,
   }
 }
 
@@ -81,13 +90,22 @@ function safePlan(value: Partial<CityPlan> | undefined, cityId: CityId): CityPla
         return stop ? [stop] : []
       })
     : []
+  const activityCounts = new Map<string, number>()
+  for (const event of events) {
+    if (allPlacesById[event.placeId].kind !== 'food') {
+      activityCounts.set(event.placeId, (activityCounts.get(event.placeId) ?? 0) + 1)
+    }
+  }
+  const needsRefresh = events.some((event) =>
+    event.origin === 'generated' && (activityCounts.get(event.placeId) ?? 0) > 1)
   return {
     startDate: value.startDate,
     endDate: value.endDate,
     activeDate: validDates.has(value.activeDate ?? '') ? value.activeDate! : value.startDate,
     events,
     settings: safeSettings(value.settings, cityId),
-    generatedOnce: typeof value.generatedOnce === 'boolean' ? value.generatedOnce : events.length > 0,
+    generatedOnce: needsRefresh ? false :
+      typeof value.generatedOnce === 'boolean' ? value.generatedOnce : events.length > 0,
   }
 }
 

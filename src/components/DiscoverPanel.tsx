@@ -40,9 +40,17 @@ export function DiscoverPanel({
 }: DiscoverPanelProps) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const plannedIds = useMemo(
+    () => new Set(events.filter((event) =>
+      places.find((place) => place.id === event.placeId)?.kind !== 'food',
+    ).map((event) => event.placeId)),
+    [events, places],
+  )
+  const available = useMemo(() => places.filter((place) =>
+    place.kind === 'food' || !plannedIds.has(place.id)), [places, plannedIds])
   const visible = useMemo(() => {
     const words = query.toLocaleLowerCase().trim()
-    return places.filter((place) => {
+    return available.filter((place) => {
       const matchesFilter =
         filter === 'all' ||
         (filter === 'saved' ? savedIds.includes(place.id) : place.kind === filter)
@@ -54,8 +62,7 @@ export function DiscoverPanel({
           .includes(words)
       return matchesFilter && matchesQuery
     })
-  }, [places, query, filter, savedIds])
-  const plannedIds = new Set(events.map((event) => event.placeId))
+  }, [available, query, filter, savedIds])
 
   return (
     <aside className="discover-panel" aria-labelledby="discover-heading">
@@ -64,9 +71,9 @@ export function DiscoverPanel({
           <span className="eyebrow dark">01 / DISCOVER</span>
           <h2 id="discover-heading">Find your thing<span className="period">.</span></h2>
         </div>
-        <span className="count-bubble">{places.length}</span>
+        <span className="count-bubble">{available.length}</span>
       </div>
-      <p className="panel-intro">Real places, thoughtfully picked. Drag a card into your day or tap + to choose a time.</p>
+      <p className="panel-intro">Drag a card into your day or tap + to choose a time. Planned activities disappear here until removed; restaurants stay available.</p>
       <label className="search-field">
         <Search size={18} aria-hidden="true" />
         <input
@@ -113,7 +120,6 @@ export function DiscoverPanel({
               quote={quote}
               date={date}
               saved={savedIds.includes(place.id)}
-              planned={plannedIds.has(place.id)}
               onSave={() => onSave(place.id)}
               onDetails={() => onDetails(place)}
               onAdd={() => onAdd(place)}

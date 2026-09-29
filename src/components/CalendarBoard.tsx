@@ -1,10 +1,11 @@
 import { CalendarCheck2, Hand, Sparkles } from 'lucide-react'
-import type { Place, ScheduledStop, TravelMatrix } from '../types'
+import type { Place, PlanSettings, ScheduledStop, TravelMatrix } from '../types'
 import { dateLabel } from '../lib/dates'
 import { DAY_END, DAY_START } from '../lib/validation'
-import { DayColumn, type DragPreview } from './DayColumn'
+import { DayColumn, PIXELS_PER_MINUTE, type DragPreview } from './DayColumn'
 import type { CityGuide } from '../domain/CityGuide'
 import type { DayAudit } from '../lib/audit'
+import type { ExchangeQuote } from '../services/exchange'
 
 interface CalendarBoardProps {
   dates: string[]
@@ -12,6 +13,10 @@ interface CalendarBoardProps {
   stops: ScheduledStop[]
   lookup: Record<string, Place>
   matrix: TravelMatrix
+  settings: PlanSettings
+  quote: ExchangeQuote
+  draggedPlace: Place | null
+  draggedEventId: string | null
   routeStatus: 'loading' | 'routed' | 'estimated'
   city: CityGuide
   audits: Record<string, DayAudit>
@@ -27,6 +32,10 @@ export function CalendarBoard({
   stops,
   lookup,
   matrix,
+  settings,
+  quote,
+  draggedPlace,
+  draggedEventId,
   routeStatus,
   city,
   audits,
@@ -76,9 +85,9 @@ export function CalendarBoard({
         <div className="calendar-grid" style={{ '--day-count': dates.length } as React.CSSProperties}>
           <div className="time-axis">
             <div className="axis-heading">{city.name.toUpperCase()}<br />TIME</div>
-            <div className="axis-body" style={{ height: DAY_END - DAY_START }}>
+            <div className="axis-body" style={{ height: (DAY_END - DAY_START) * PIXELS_PER_MINUTE }}>
               {hours.map((hour) => (
-                <span key={hour} className="axis-label" style={{ top: hour - DAY_START }}>
+                <span key={hour} className="axis-label" style={{ top: (hour - DAY_START) * PIXELS_PER_MINUTE }}>
                   {String(Math.floor(hour / 60)).padStart(2, '0')}:00
                 </span>
               ))}
@@ -92,6 +101,10 @@ export function CalendarBoard({
               stops={stops.filter((stop) => stop.date === date)}
               lookup={lookup}
               matrix={matrix}
+              settings={settings}
+              quote={quote}
+              draggedPlace={draggedPlace}
+              draggedEventId={draggedEventId}
               preview={preview}
               audit={audits[date]}
               onSelect={() => onSelectDate(date)}
@@ -101,7 +114,7 @@ export function CalendarBoard({
           ))}
         </div>
       </div>
-      <p className="board-footnote">Travel gaps include a small buffer for crossings. Dragging a stop keeps it in future generated routes.</p>
+      <p className="board-footnote">Prices are estimated USD per person. Walks to stops include crossing time; on-site walking is estimated by activity. Dragging a stop keeps it in future generated routes.</p>
     </section>
   )
 }

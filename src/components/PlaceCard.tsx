@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
-import { ArrowUpRight, Check, GripVertical, Heart, Plus, Star } from 'lucide-react'
+import { ArrowUpRight, GripVertical, Heart, Plus, Star } from 'lucide-react'
 import type { Place } from '../types'
 import { getAvailability } from '../lib/hours'
 import { KindIcon } from './KindIcon'
@@ -12,7 +12,6 @@ interface PlaceCardProps {
   quote: ExchangeQuote
   date: string
   saved: boolean
-  planned: boolean
   onSave: () => void
   onDetails: () => void
   onAdd: () => void
@@ -24,12 +23,11 @@ export function PlaceCard({
   quote,
   date,
   saved,
-  planned,
   onSave,
   onDetails,
   onAdd,
 }: PlaceCardProps) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: 'place:' + place.id,
     data: { type: 'place', placeId: place.id },
   })
@@ -46,6 +44,7 @@ export function PlaceCard({
   return (
     <article
       ref={setNodeRef}
+      {...listeners}
       className={'place-card kind-' + place.kind + (isDragging ? ' dragging' : '')}
     >
       <div className="place-art" aria-hidden="true">
@@ -72,7 +71,6 @@ export function PlaceCard({
                   ? 'Call ahead'
                   : 'Flexible'}
           </span>
-          {planned && place.kind !== 'food' && <span className="planned-badge"><Check size={12} /> In plan</span>}
           <span className="price-badge" title={place.price?.note ?? 'Ticket price not verified; excluded from budgeted suggestions'}>
             {place.cost === 'free' ? 'Free' : place.price
               ? `${city.formatPrice(place.price.amount)} ≈ ${formatUsd(toUsd(place.price.amount, place.price.currency, quote))}`
@@ -85,6 +83,8 @@ export function PlaceCard({
           className={'icon-button save-button' + (saved ? ' is-saved' : '')}
           type="button"
           onClick={onSave}
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
           aria-label={(saved ? 'Remove ' : 'Save ') + place.name + (saved ? ' from' : ' to') + ' favorites'}
           aria-pressed={saved}
           title={saved ? 'Remove from favorites' : 'Save for later'}
@@ -94,8 +94,8 @@ export function PlaceCard({
         <button
           className="icon-button drag-handle"
           type="button"
+          ref={setActivatorNodeRef}
           {...attributes}
-          {...listeners}
           aria-label={'Drag ' + place.name + ' into a day on the calendar'}
           title="Drag into the calendar"
         >
@@ -105,8 +105,9 @@ export function PlaceCard({
           className="place-add"
           type="button"
           onClick={onAdd}
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
           aria-label={'Add ' + place.name + ' to itinerary'}
-          disabled={planned && place.kind !== 'food'}
         >
           <Plus size={16} aria-hidden="true" />
         </button>

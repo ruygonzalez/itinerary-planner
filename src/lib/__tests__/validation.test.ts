@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { placesById } from '../../data/places'
+import { snapshotRates } from '../../services/exchange'
 import type { ScheduledStop, TravelMatrix } from '../../types'
+import { defaultSettings } from '../storage'
 import { validatePlacement } from '../validation'
 
 const dates = { startDate: '2026-12-22', endDate: '2026-12-25' }
@@ -88,5 +90,62 @@ describe('manual drop and move validation', () => {
     expect(validatePlacement({
       ...dates, events: [], lookup, place: bakery, date: '2026-12-22', start: 765,
     }).ok).toBe(false)
+  })
+
+  it('rejects an attraction already scheduled on another day but allows a restaurant again', () => {
+    const events = [stop('acropolis', '2026-12-22', 540), stop('takis-bakery', '2026-12-22', 495)]
+    const base = { ...dates, events, lookup, settings: defaultSettings(), quote: snapshotRates }
+    expect(validatePlacement({
+      ...base, place: lookup.acropolis, date: '2026-12-23', start: 540,
+    })).toMatchObject({ ok: false, reason: 'duplicate' })
+    expect(validatePlacement({
+      ...base, place: lookup['takis-bakery'], date: '2026-12-23', start: 495,
+    })).toMatchObject({ ok: true, meal: 'breakfast' })
+  })
+
+  it('blocks a paid drop only on the day that exceeds its USD activity cap', () => {
+    const existing = stop('acropolis-museum', '2026-12-23', 540)
+    const base = {
+      ...dates, events: [existing], lookup, quote: snapshotRates,
+      settings: { ...defaultSettings(), maxActivitiesUsd: 30 },
+      place: lookup.cycladic, start: 720,
+    }
+    const expensiveDay = validatePlacement({ ...base, date: '2026-12-23' })
+    expect(expensiveDay).toMatchObject({ ok: false, reason: 'budget' })
+    expect(expensiveDay.message).toMatch(/per person.*over the.*daily limit/)
+    expect(validatePlacement({ ...base, date: '2026-12-24' }).ok).toBe(true)
+    expect(validatePlacement({
+      ...base, date: '2026-12-23', place: lookup['acropolis-museum'],
+      start: 555, ignoreId: existing.id,
+    }).ok).toBe(true)
+  })
+
+  it('includes walking at the activity even on a day with no transfers', () => {
+    const settings = { ...defaultSettings(), maxWalkingMeters: 500, distanceUnit: 'miles' as const }
+    const result = validatePlacement({
+      ...dates, events: [], lookup, quote: snapshotRates, settings,
+      place: lookup.acropolis, date: '2026-12-22', start: 540,
+    })
+    expect(result).toMatchObject({ ok: false, reason: 'walking' })
+    expect(result.message).toContain('mi')
+    expect(validatePlacement({
+      ...dates, events: [], lookup, quote: snapshotRates, settings,
+      place: lookup['takis-bakery'], date: '2026-12-22', start: 495,
+    }).ok).toBe(true)
+  })
+
+  it('applies the same caps to meal drops and paid stops moved between days', () => {
+    expect(validatePlacement({
+      ...dates, events: [], lookup, quote: snapshotRates,
+      settings: { ...defaultSettings(), maxMealsUsd: 5 },
+      place: lookup['takis-bakery'], date: '2026-12-22', start: 495,
+    })).toMatchObject({ ok: false, reason: 'budget' })
+    const moving = stop('acropolis', '2026-12-22', 540)
+    const museum = stop('acropolis-museum', '2026-12-23', 540)
+    expect(validatePlacement({
+      ...dates, events: [moving, museum], lookup, quote: snapshotRates,
+      settings: { ...defaultSettings(), maxActivitiesUsd: 35 },
+      ignoreId: moving.id, place: lookup.acropolis, date: '2026-12-23', start: 720,
+    })).toMatchObject({ ok: false, reason: 'budget' })
   })
 })

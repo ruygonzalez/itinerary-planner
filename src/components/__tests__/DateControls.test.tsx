@@ -11,6 +11,8 @@ const settings = {
   savedIds: [],
   maxMealsUsd: 35,
   maxActivitiesUsd: 65,
+  maxWalkingMeters: 10000,
+  distanceUnit: 'km' as const,
 }
 
 describe('date controls', () => {

@@ -3,6 +3,7 @@ export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export type RequiredMeal = Exclude<MealSlot, 'snack'>
 export type CityId = 'athens' | 'cairo' | 'istanbul'
 export type CurrencyCode = 'EUR' | 'EGP' | 'TRY'
+export type DistanceUnit = 'steps' | 'feet' | 'miles' | 'km'
 export type Pace = 'easy' | 'balanced' | 'full'
 export type Interest = 'all' | 'history' | 'art' | 'outdoors' | 'food'
 export type HoursStatus = 'open' | 'closed' | 'tentative' | 'flexible'
@@ -55,6 +56,11 @@ export interface PriceQuote {
   note: string
 }
 
+export interface WalkingEstimate {
+  minutes: number
+  meters: number
+}
+
 export interface Place {
   id: string
   cityId: CityId
@@ -64,6 +70,7 @@ export interface Place {
   description: string
   kind: PlaceKind
   duration: number
+  walkingEstimate?: WalkingEstimate
   coordinates: Coordinates
   rating: number
   reviewCount: number
@@ -119,6 +126,8 @@ export interface PlanSettings {
   savedIds: string[]
   maxMealsUsd: number
   maxActivitiesUsd: number
+  maxWalkingMeters: number
+  distanceUnit: DistanceUnit
 }
 
 export interface CityPlan {

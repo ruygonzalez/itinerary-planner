@@ -1,10 +1,12 @@
 import { CalendarDays, Clock3, Plus, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { Place, ScheduledStop, TravelMatrix } from '../types'
+import type { Place, PlanSettings, ScheduledStop, TravelMatrix } from '../types'
+import { stopBudget } from '../lib/costs'
 import { dateLabel, minuteFromTime, timeLabel } from '../lib/dates'
 import { getAvailability } from '../lib/hours'
 import { suggestStart, validatePlacement, type PlacementResult } from '../lib/validation'
 import { Modal } from './Modal'
+import { formatUsd, type ExchangeQuote } from '../services/exchange'
 
 interface AddPlaceDialogProps {
   place: Place
@@ -13,6 +15,8 @@ interface AddPlaceDialogProps {
   events: ScheduledStop[]
   lookup: Record<string, Place>
   matrix: TravelMatrix
+  settings: PlanSettings
+  quote: ExchangeQuote
   onConfirm: (date: string, start: number) => PlacementResult
   onClose: () => void
 }
@@ -24,13 +28,15 @@ export function AddPlaceDialog({
   events,
   lookup,
   matrix,
+  settings,
+  quote,
   onConfirm,
   onClose,
 }: AddPlaceDialogProps) {
   const [date, setDate] = useState(activeDate)
   const [time, setTime] = useState(() =>
     timeLabel(
-      suggestStart(place, activeDate, events, lookup, matrix, dates[0], dates.at(-1)!) ??
+      suggestStart(place, activeDate, events, lookup, matrix, dates[0], dates.at(-1)!, settings, quote) ??
         12 * 60,
     ),
   )
@@ -49,13 +55,15 @@ export function AddPlaceDialog({
           matrix,
           startDate: dates[0],
           endDate: dates.at(-1)!,
+          settings,
+          quote,
         })
 
   useEffect(() => {
-    const suggested = suggestStart(place, date, events, lookup, matrix, dates[0], dates.at(-1)!)
+    const suggested = suggestStart(place, date, events, lookup, matrix, dates[0], dates.at(-1)!, settings, quote)
     if (suggested !== null) setTime(timeLabel(suggested))
     setError('')
-  }, [date, place, events, lookup, matrix, dates])
+  }, [date, place, events, lookup, matrix, dates, settings, quote])
 
   const submit = () => {
     if (minutes === null) return
@@ -66,9 +74,14 @@ export function AddPlaceDialog({
 
   return (
     <Modal title={'Add ' + place.name} onClose={onClose}>
-      <p className="modal-intro">Choose a day and a start time. We'll check the venue's hours and walking gaps. The daily audit will flag any missing meal, distant restaurant or budget overage after you add it.</p>
+      <p className="modal-intro">Choose a day and time. Opening hours, spending limits and walking distance are checked before adding; missing meals and nearby-restaurant rules appear in the daily checklist.</p>
       <div className="modal-form-grid">
-        <label><span><CalendarDays size={15} /> Day</span><select name="add-day" value={date} onChange={(event) => setDate(event.target.value)}>{dates.map((day) => <option key={day} value={day}>{dateLabel(day, { weekday: 'long', month: 'long', day: 'numeric' })}</option>)}</select></label>
+        <label><span><CalendarDays size={15} /> Day</span><select name="add-day" value={date} onChange={(event) => setDate(event.target.value)}>{dates.map((day) => {
+          const room = stopBudget(place, day, events, lookup, settings, quote)
+          return <option key={day} value={day}>
+            {dateLabel(day, { weekday: 'long', month: 'long', day: 'numeric' })} · {room.exceeded ? 'over budget' : formatUsd(Math.max(0, room.remainingUsd)) + ' left'}
+          </option>
+        })}</select></label>
         <label><span><Clock3 size={15} /> Start time</span><input name="add-time" type="time" step="900" value={time} onChange={(event) => { setTime(event.target.value); setError('') }} /></label>
       </div>
       <div className={'modal-availability status-' + availability.status}>

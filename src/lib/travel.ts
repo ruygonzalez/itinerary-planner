@@ -1,4 +1,4 @@
-import type { Place, ScheduledStop, TravelLeg, TravelMatrix } from '../types'
+import type { Place, ScheduledStop, TravelLeg, TravelMatrix, WalkingEstimate } from '../types'
 
 const radians = (degrees: number) => (degrees * Math.PI) / 180
 const hillIds = new Set(['acropolis', 'areopagus', 'philopappos', 'lycabettus'])
@@ -43,13 +43,27 @@ export function getTravelLeg(a: Place, b: Place, matrix?: TravelMatrix | null): 
   return estimatedLeg(a, b)
 }
 
+export function expectedOnsiteWalk(place: Place): WalkingEstimate {
+  if (place.walkingEstimate) return place.walkingEstimate
+  if (place.kind === 'food') return { minutes: 0, meters: 0 }
+  const portion = place.kind === 'museum' ? 0.32 : place.kind === 'outdoors' ? 0.52 : 0.34
+  const metersPerMinute = place.kind === 'museum' ? 38 : place.kind === 'outdoors' ? 57 : 46
+  const minutes = Math.round(place.duration * portion)
+  return { minutes, meters: Math.round(minutes * metersPerMinute) }
+}
+
+export interface DailyWalking extends WalkingEstimate {
+  transfers: WalkingEstimate
+  onSite: WalkingEstimate
+}
+
 export function dayWalking(
   stops: ScheduledStop[],
   lookup: Record<string, Place>,
   matrix?: TravelMatrix | null,
-): { minutes: number; meters: number } {
+): DailyWalking {
   const ordered = [...stops].sort((a, b) => a.start - b.start)
-  return ordered.slice(1).reduce(
+  const transfers = ordered.slice(1).reduce(
     (total, stop, index) => {
       const before = lookup[ordered[index].placeId]
       const after = lookup[stop.placeId]
@@ -59,4 +73,16 @@ export function dayWalking(
     },
     { minutes: 0, meters: 0 },
   )
+  const onSite = ordered.reduce((total, stop) => {
+    const place = lookup[stop.placeId]
+    if (!place) return total
+    const estimate = expectedOnsiteWalk(place)
+    return { minutes: total.minutes + estimate.minutes, meters: total.meters + estimate.meters }
+  }, { minutes: 0, meters: 0 })
+  return {
+    minutes: transfers.minutes + onSite.minutes,
+    meters: transfers.meters + onSite.meters,
+    transfers,
+    onSite,
+  }
 }

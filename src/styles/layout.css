@@ -177,7 +177,6 @@
 .site-footer strong { font: 400 19px/1 'Fraunces', Georgia, serif; color: var(--deep); letter-spacing: -.06em; }
 .footer-mark { margin-right: 4px; color: var(--terracotta); font-size: 20px; }
 .site-footer p { display: flex; align-items: center; gap: 6px; margin: 0; }
-.site-footer button { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; color: var(--deep); font-size: 11px; font-weight: 700; white-space: nowrap; }
 
 @media (max-width: 1440px) {
   .site-header-inner { gap: 34px; }
@@ -187,7 +186,7 @@
 @media (max-width: 1250px) {
   .workspace { grid-template-columns: minmax(270px, 320px) minmax(0, 1fr); }
   .insights-panel { position: static; grid-column: 2; display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
-  .insights-panel > .panel-heading, .insights-panel > .panel-intro, .insights-panel > .route-source, .insights-panel > .source-link { grid-column: 1 / -1; }
+  .insights-panel > .panel-heading, .insights-panel > .panel-intro, .insights-panel > .route-source { grid-column: 1 / -1; }
   .insights-panel > .map-card { grid-row: span 2; }
   .insights-panel > .smart-notes { align-self: start; }
   .controls-grid { grid-template-columns: minmax(280px, 1.3fr) minmax(160px, .8fr) minmax(175px, 1fr); }

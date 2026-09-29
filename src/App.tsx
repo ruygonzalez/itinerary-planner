@@ -13,8 +13,8 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { ArrowUpRight, Clock3, Footprints, ShieldCheck, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Clock3, Footprints, ShieldCheck, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { AddPlaceDialog } from './components/AddPlaceDialog'
 import { CalendarBoard } from './components/CalendarBoard'
 import { CitySelector } from './components/CitySelector'
@@ -23,7 +23,6 @@ import { DateControls } from './components/DateControls'
 import { DiscoverPanel } from './components/DiscoverPanel'
 import { EditStopDialog } from './components/EditStopDialog'
 import { Header } from './components/Header'
-import { InfoDialog } from './components/InfoDialog'
 import { InsightsPanel } from './components/InsightsPanel'
 import { KindIcon } from './components/KindIcon'
 import { PlaceDetailsDialog } from './components/PlaceDetailsDialog'
@@ -33,16 +32,19 @@ import { destinations } from './data/destinations'
 import { usePlanner } from './hooks/usePlanner'
 import { downloadCalendar } from './lib/export'
 import { roundToQuarter } from './lib/dates'
+import { stopCostUsd } from './lib/costs'
 import { dayWalking } from './lib/travel'
 import { DAY_END, DAY_START } from './lib/validation'
+import { formatUsd } from './services/exchange'
 import type { Place, ScheduledStop } from './types'
 
 type Dialog =
   | { type: 'details'; placeId: string }
   | { type: 'add'; placeId: string }
   | { type: 'edit'; eventId: string }
-  | { type: 'info'; view: 'how' | 'sources' }
   | null
+
+type DragTarget = Pick<DragPreview, 'date' | 'start' | 'placeId'>
 
 const collisionDetection: CollisionDetection = (args) => {
   const pointer = pointerWithin(args)
@@ -60,12 +62,14 @@ function pointerPosition(event: DragMoveEvent | DragEndEvent): number | null {
   return event.active.rect.current.translated?.top ?? null
 }
 
-function previewFor(event: DragMoveEvent | DragEndEvent, lookup: Record<string, Place>): DragPreview | null {
+function previewFor(
+  event: DragMoveEvent | DragEndEvent, lookup: Record<string, Place>, pointerY: number | null,
+): DragTarget | null {
   const date = event.over?.data.current?.date as string | undefined
   const placeId = event.active.data.current?.placeId as string | undefined
   if (!date || !placeId || !lookup[placeId]) return null
   const lane = document.getElementById('lane-' + date)
-  const y = pointerPosition(event)
+  const y = pointerY ?? pointerPosition(event)
   if (!lane || y === null) return null
   const top = lane.getBoundingClientRect().top
   const place = lookup[placeId]
@@ -86,7 +90,9 @@ export default function App() {
   const [dialog, setDialog] = useState<Dialog>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [draggedPlaceId, setDraggedPlaceId] = useState<string | null>(null)
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
   const [preview, setPreview] = useState<DragPreview | null>(null)
+  const pointerY = useRef<number | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 7 } }),
@@ -110,9 +116,24 @@ export default function App() {
   }, [dialog])
 
   useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => { pointerY.current = event.clientY }
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches[0]) pointerY.current = event.touches[0].clientY
+    }
+    window.addEventListener('pointermove', onPointerMove, true)
+    window.addEventListener('touchmove', onTouchMove, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove, true)
+      window.removeEventListener('touchmove', onTouchMove, true)
+    }
+  }, [])
+
+  useEffect(() => {
     setDialog(null)
     setPreview(null)
     setDraggedPlaceId(null)
+    setDraggedEventId(null)
+    pointerY.current = null
   }, [planner.cityId])
 
   useEffect(() => {
@@ -140,11 +161,22 @@ export default function App() {
   }
 
   const onDragStart = (event: DragStartEvent) => {
+    const trigger = event.activatorEvent
+    pointerY.current = 'clientY' in trigger && typeof trigger.clientY === 'number'
+      ? trigger.clientY : null
     setDraggedPlaceId((event.active.data.current?.placeId as string | undefined) ?? null)
+    setDraggedEventId((event.active.data.current?.eventId as string | undefined) ?? null)
   }
-  const onDragMove = (event: DragMoveEvent) => setPreview(previewFor(event, placesById))
+  const onDragMove = (event: DragMoveEvent) => {
+    const drop = previewFor(event, placesById, pointerY.current)
+    const eventId = event.active.data.current?.eventId as string | undefined
+    setPreview(drop ? {
+      ...drop,
+      validation: planner.previewPlacement(drop.placeId, drop.date, drop.start, eventId),
+    } : null)
+  }
   const onDragEnd = (event: DragEndEvent) => {
-    const drop = previewFor(event, placesById)
+    const drop = previewFor(event, placesById, pointerY.current)
     const eventId = event.active.data.current?.eventId as string | undefined
     const placeId = event.active.data.current?.placeId as string | undefined
     if (drop && placeId) {
@@ -152,11 +184,15 @@ export default function App() {
       else addPlace(placeId, drop.date, drop.start)
     }
     setDraggedPlaceId(null)
+    setDraggedEventId(null)
     setPreview(null)
+    pointerY.current = null
   }
   const onDragCancel = () => {
     setDraggedPlaceId(null)
+    setDraggedEventId(null)
     setPreview(null)
+    pointerY.current = null
   }
 
   const tripWalking = planner.dates.reduce(
@@ -170,6 +206,8 @@ export default function App() {
     0,
   )
   const selectedStops = planner.events.filter((event) => event.date === planner.activeDate)
+  const draggedPlace = draggedPlaceId ? placesById[draggedPlaceId] ?? null : null
+  const draggedCost = draggedPlace ? stopCostUsd(draggedPlace, planner.quote) : null
   const detailsPlace = dialog && 'placeId' in dialog ? placesById[dialog.placeId] : null
   const editingEvent =
     dialog?.type === 'edit'
@@ -192,8 +230,6 @@ export default function App() {
     >
       <Header
         stopCount={planner.allEvents.length}
-        onHow={() => setDialog({ type: 'info', view: 'how' })}
-        onSources={() => setDialog({ type: 'info', view: 'sources' })}
         onExport={() => {
           if (!planner.allEvents.length) return
           downloadCalendar(planner.allEvents, planner.allPlacesById)
@@ -282,6 +318,10 @@ export default function App() {
               stops={planner.events}
               lookup={placesById}
               matrix={planner.matrix}
+              settings={planner.settings}
+              quote={planner.quote}
+              draggedPlace={draggedPlace}
+              draggedEventId={draggedEventId}
               routeStatus={planner.routeStatus}
               city={planner.city}
               audits={planner.audits}
@@ -300,24 +340,22 @@ export default function App() {
               routeStatus={planner.routeStatus}
               audit={planner.audits[planner.activeDate]}
               quote={planner.quote}
-              maxMealsUsd={planner.settings.maxMealsUsd}
-              maxActivitiesUsd={planner.settings.maxActivitiesUsd}
-              onSources={() => setDialog({ type: 'info', view: 'sources' })}
+              settings={planner.settings}
             />
           </div>
         </main>
         <footer className="site-footer">
           <div><span className="footer-mark">✦</span><strong>atlas<span>.</span></strong> For the days you'll remember.</div>
           <p><Clock3 size={14} /> {planner.city.country.timeZone} local time · Hours checked Sep 2026 · Confirm special openings</p>
-          <button type="button" onClick={() => setDialog({ type: 'info', view: 'sources' })}>Data & credits <ArrowUpRight size={14} /></button>
         </footer>
       </div>
       <DragOverlay dropAnimation={null}>
-        {draggedPlaceId && placesById[draggedPlaceId] ? (
-          <div className={'drag-overlay kind-' + placesById[draggedPlaceId].kind}>
-            <KindIcon kind={placesById[draggedPlaceId].kind} size={20} />
-            <strong>{placesById[draggedPlaceId].name}</strong>
-            <span>Drop into a day</span>
+        {draggedPlace ? (
+          <div className={'drag-overlay kind-' + draggedPlace.kind}>
+            <KindIcon kind={draggedPlace.kind} size={20} />
+            <strong>{draggedPlace.name}</strong>
+            <span>{draggedCost === null ? 'Price unknown' :
+              draggedPlace.cost === 'free' ? 'Free' : 'Est. ' + formatUsd(draggedCost) + ' / person'}</span>
           </div>
         ) : null}
       </DragOverlay>
@@ -339,6 +377,8 @@ export default function App() {
           events={planner.events}
           lookup={placesById}
           matrix={planner.matrix}
+          settings={planner.settings}
+          quote={planner.quote}
           onConfirm={(date, start) => addPlace(detailsPlace.id, date, start)}
           onClose={closeDialog}
         />
@@ -351,6 +391,8 @@ export default function App() {
           events={planner.events}
           lookup={placesById}
           matrix={planner.matrix}
+          settings={planner.settings}
+          quote={planner.quote}
           onMove={(date, start) => moveEvent(editingEvent.id, date, start)}
           onPin={() => {
             planner.togglePin(editingEvent.id)
@@ -362,9 +404,6 @@ export default function App() {
           }}
           onClose={closeDialog}
         />
-      )}
-      {dialog?.type === 'info' && (
-        <InfoDialog view={dialog.view} places={destinations.flatMap((destination) => destination.places)} onClose={closeDialog} />
       )}
       <Toast message={toast} onClose={() => setToast(null)} />
     </DndContext>

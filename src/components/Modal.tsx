@@ -5,10 +5,9 @@ interface ModalProps {
   title: string
   onClose: () => void
   children: ReactNode
-  wide?: boolean
 }
 
-export function Modal({ title, onClose, children, wide = false }: ModalProps) {
+export function Modal({ title, onClose, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const oldOverflow = document.body.style.overflow
@@ -55,7 +54,7 @@ export function Modal({ title, onClose, children, wide = false }: ModalProps) {
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div ref={dialogRef} className={'modal-card' + (wide ? ' wide' : '')} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div ref={dialogRef} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-top">
           <span className="eyebrow dark">ATLAS · THREE CITIES</span>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close dialog" autoFocus><X size={20} /></button>

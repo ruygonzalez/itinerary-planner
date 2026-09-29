@@ -34,3 +34,27 @@ export function withinDailyCaps(costs: DayCosts, settings: PlanSettings): boolea
     costs.mealsUsd <= settings.maxMealsUsd + 0.00001 &&
     costs.activitiesUsd <= settings.maxActivitiesUsd + 0.00001
 }
+
+export function stopBudget(
+  place: Place,
+  date: string,
+  events: ScheduledStop[],
+  lookup: Record<string, Place>,
+  settings: PlanSettings,
+  quote: ExchangeQuote,
+  ignoreId?: string,
+) {
+  const remaining = events.filter((event) => event.date === date && event.id !== ignoreId)
+  const costs = dayCosts(remaining, lookup, quote)
+  const isMeal = place.kind === 'food'
+  const spentUsd = isMeal ? costs.mealsUsd : costs.activitiesUsd
+  const capUsd = isMeal ? settings.maxMealsUsd : settings.maxActivitiesUsd
+  const priceUsd = stopCostUsd(place, quote)
+  return {
+    category: isMeal ? 'meal' as const : 'activity' as const,
+    spentUsd, capUsd, priceUsd,
+    remainingUsd: capUsd - spentUsd,
+    totalUsd: priceUsd === null ? null : spentUsd + priceUsd,
+    exceeded: priceUsd !== null && spentUsd + priceUsd > capUsd + 0.00001,
+  }
+}

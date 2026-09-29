@@ -27,16 +27,26 @@ async function selectCity(page, id) {
   await page.waitForFunction((city) => JSON.parse(localStorage.getItem('atlas-three-cities-v2')).selectedCity === city, id)
 }
 
-async function drag(page, from, to, offsetMinutes) {
+async function drag(page, from, to, offsetPixels, inspect) {
   await to.scrollIntoViewIfNeeded()
   await from.scrollIntoViewIfNeeded()
+  await from.evaluate((element) => element.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' }))
+  await page.evaluate(() => {
+    const heading = document.getElementById('board-heading')
+    if (heading) window.scrollTo({ top: scrollY + heading.getBoundingClientRect().top - 90, behavior: 'instant' })
+  })
   const origin = await from.boundingBox()
   const target = await to.boundingBox()
-  assert(origin && target, 'Both draggable handle and day lane must be visible')
+  assert(origin && target, 'Both the draggable and day lane must be visible')
   await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2)
   await page.mouse.down()
-  await page.mouse.move(target.x + target.width / 2, target.y + offsetMinutes, { steps: 18 })
+  await page.mouse.move(target.x + target.width / 2, target.y + offsetPixels, { steps: 18 })
+  if (inspect) await inspect({ origin, target, dropY: target.y + offsetPixels })
   await page.mouse.up()
+}
+
+function cardArt(page, name) {
+  return page.locator('.place-card').filter({ has: page.getByRole('button', { name: 'Add ' + name + ' to itinerary' }) }).locator('.place-art')
 }
 
 function assertThreeMeals(plan, city) {
@@ -67,10 +77,17 @@ try {
   assert.equal(await page.locator('.day-column').count(), 3)
   assert.match(await page.locator('.transfer-warning').innerText(), /Dec 24 appears in Athens and Cairo/)
   assert((await page.locator('input[name="meal-budget"]').inputValue()) === '35')
+  assert.equal(await page.getByRole('button', { name: 'How it works' }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: 'Our sources' }).count(), 0)
+  assert.equal(await page.getByRole('combobox', { name: 'Walking distance unit' }).inputValue(), 'km')
+  assert(await page.locator('.calendar-event .event-cost').count() > 0, 'Calendar stops must show costs per person')
+  assert(await page.locator('.calendar-event .event-route').count() > 0, 'Calendar stops must show walking estimates')
   if (evidenceDir) {
     await page.screenshot({ path: path.join(evidenceDir, 'desktop-athens.png') })
     await page.locator('.budget-controls').scrollIntoViewIfNeeded()
     await page.screenshot({ path: path.join(evidenceDir, 'desktop-budgets.png') })
+    await page.locator('.walking-controls').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: path.join(evidenceDir, 'desktop-walking.png') })
     await page.locator('#board-heading').scrollIntoViewIfNeeded()
     await page.screenshot({ path: path.join(evidenceDir, 'desktop-calendar.png') })
   }
@@ -105,7 +122,7 @@ try {
   assert((await page.locator('.constraint-summary').innerText()).includes('rules to fix'))
   await drag(
     page,
-    page.getByRole('button', { name: 'Drag Topkapı Palace into a day on the calendar' }),
+    cardArt(page, 'Topkapı Palace'),
     page.locator('#lane-2026-12-29'),
     120,
   )
@@ -121,15 +138,69 @@ try {
   await page.locator('input[name="activity-budget"]').fill('0')
   await drag(
     page,
-    page.getByRole('button', { name: 'Drag The Acropolis into a day on the calendar' }),
+    cardArt(page, 'The Acropolis'),
     page.locator('#lane-2026-12-22'),
     150,
+    async () => {
+      assert(await page.locator('.day-column.cannot-afford').count() > 0, 'The day header should warn about an unaffordable stop')
+      assert((await page.locator('.drop-preview.blocked').innerText()).includes('Over this day’s budget'))
+      if (evidenceDir) await page.screenshot({ path: path.join(evidenceDir, 'budget-blocked.png') })
+    },
   )
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('atlas-three-cities-v2')).plans.athens.events.length === 1)
+  await page.getByRole('alert').filter({ hasText: /over the.*daily limit/i }).waitFor()
   state = await readPlan(page)
-  assert(state.plans.athens.events.some((stop) => stop.placeId === 'acropolis' && stop.pinned))
-  assert((await page.locator('.constraint-list').innerText()).includes('Activities are about'), 'Manually exceeded activity cap must be flagged')
+  assert.equal(state.plans.athens.events.length, 0, 'An over-budget drop must not save a stop')
   assert((await page.locator('.constraint-list').innerText()).includes('Exactly one lunch is required'))
+
+  await page.locator('input[name="activity-budget"]').fill('35')
+  await drag(page, cardArt(page, 'The Acropolis'), page.locator('#lane-2026-12-22'), 150)
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('atlas-three-cities-v2')).plans.athens.events.some((stop) => stop.placeId === 'acropolis'))
+  assert.equal(await cardArt(page, 'The Acropolis').count(), 0, 'Scheduled activities must disappear from Discover')
+  assert(await cardArt(page, 'Falafellas').count() > 0, 'Repeatable meals should stay in Discover')
+  await drag(
+    page, cardArt(page, 'Ancient Agora'), page.locator('#lane-2026-12-22'), 360,
+    async ({ origin, target, dropY }) => {
+      assert(await page.locator('.day-column').first().evaluate((element) => element.classList.contains('cannot-afford')))
+      assert(await page.locator('.day-column').nth(1).evaluate((element) => element.classList.contains('can-afford')))
+      const previewText = await page.locator('.drop-preview.blocked').innerText()
+      assert(previewText.includes('Over this day’s budget'), JSON.stringify({ previewText, origin, target, dropY }))
+    },
+  )
+  state = await readPlan(page)
+  assert.equal(state.plans.athens.events.length, 1)
+  await drag(page, cardArt(page, 'Ancient Agora'), page.locator('#lane-2026-12-23'), 150)
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('atlas-three-cities-v2')).plans.athens.events.length === 2)
+  state = await readPlan(page)
+  assert(state.plans.athens.events.some((stop) => stop.placeId === 'ancient-agora' && stop.date === '2026-12-23'))
+  assert.equal(await cardArt(page, 'Ancient Agora').count(), 0)
+
+  await page.locator('input[name="walking-limit"]').fill('0')
+  await page.locator('select[name="walking-unit"]').selectOption('miles')
+  state = await readPlan(page)
+  assert.equal(state.plans.athens.settings.maxWalkingMeters, 0)
+  assert.equal(state.plans.athens.settings.distanceUnit, 'miles')
+  assert((await page.locator('.constraint-list').innerText()).includes('walking'))
+  await drag(page, cardArt(page, 'Monastiraki Square'), page.locator('#lane-2026-12-24'), 300,
+    async ({ origin, target, dropY }) => {
+      const previews = await page.locator('.drop-preview').allInnerTexts()
+      const position = await page.locator('#lane-2026-12-24').boundingBox()
+      const lanes = await page.locator('.day-lane').evaluateAll((elements) => elements.map((element) => element.className))
+      assert(previews.some((text) => text.includes('walking limit')),
+        JSON.stringify({ previews, origin, target, dropY, position, lanes }))
+    })
+  state = await readPlan(page)
+  assert.equal(state.plans.athens.events.length, 2, 'On-site walking must count even without another stop that day')
+  await page.locator('select[name="walking-unit"]').selectOption('steps')
+  await page.locator('input[name="walking-limit"]').fill('14000')
+  await page.locator('select[name="walking-unit"]').selectOption('feet')
+  state = await readPlan(page)
+  assert.equal(state.plans.athens.settings.maxWalkingMeters, 10668)
+  assert.equal(state.plans.athens.settings.distanceUnit, 'feet')
+  await page.locator('select[name="walking-unit"]').selectOption('km')
+  await drag(page, cardArt(page, 'Monastiraki Square'), page.locator('#lane-2026-12-24'), 300)
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('atlas-three-cities-v2')).plans.athens.events.length === 3)
+  assert((await page.locator('.calendar-event .event-cost').allTextContents()).includes('Free'))
+  assert((await page.locator('.calendar-event .event-route').allTextContents()).some((text) => text.includes('on-site')))
 
   await page.locator('input[name="meal-budget"]').fill('0')
   await page.getByRole('button', { name: 'Generate a route' }).click()
@@ -142,6 +213,8 @@ try {
   await page.getByRole('button', { name: 'Generate a route' }).click()
   state = await readPlan(page)
   assert(state.plans.athens.events.some((stop) => stop.placeId === 'acropolis' && stop.pinned))
+  const activities = state.plans.athens.events.filter((stop) => !stop.meal)
+  assert.equal(new Set(activities.map((stop) => stop.placeId)).size, activities.length)
 
   await selectCity(page, 'cairo')
   await page.locator('input[name="trip-start"]').fill('2027-04-01')
@@ -164,6 +237,8 @@ try {
     await phone.screenshot({ path: path.join(evidenceDir, 'mobile-top.png') })
     await phone.locator('input[name="meal-budget"]').scrollIntoViewIfNeeded()
     await phone.screenshot({ path: path.join(evidenceDir, 'mobile-budgets.png') })
+    await phone.locator('.walking-controls').scrollIntoViewIfNeeded()
+    await phone.screenshot({ path: path.join(evidenceDir, 'mobile-walking.png') })
     await phone.locator('#board-heading').scrollIntoViewIfNeeded()
     await phone.screenshot({ path: path.join(evidenceDir, 'mobile-calendar.png') })
   }
@@ -175,6 +250,7 @@ try {
   assert.equal(layout.width, 393)
   assert(layout.scrollWidth <= layout.width + 1, 'Mobile page must not scroll horizontally')
   assert.equal(layout.visibleDays, 1)
+  assert.equal(await phone.getByRole('combobox', { name: 'Walking distance unit' }).inputValue(), 'km')
   await phone.getByRole('tab', { name: /Wed 23/ }).click()
   assert((await phone.locator('.day-column.active .day-heading-date').textContent()).includes('23'))
   await phone.getByRole('button', { name: 'Food', exact: true }).click()
@@ -186,7 +262,7 @@ try {
   await mobile.close()
 
   assert.deepEqual(errors, [], 'No uncaught browser errors')
-  process.stdout.write('UI smoke checks passed: three cities, three meals/day, budget and closure rules, drag/drop, export, date changes, and mobile layout.\n')
+  process.stdout.write('UI smoke checks passed: city itineraries, on-site walks, unit changes, per-day budget previews, card dragging, closures, export, and mobile layout.\n')
 } finally {
   await browser.close()
 }

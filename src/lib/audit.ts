@@ -1,8 +1,9 @@
-import type { CityId, Place, PlanSettings, RequiredMeal, ScheduledStop, TravelMatrix } from '../types'
+import type { CityId, DistanceUnit, Place, PlanSettings, RequiredMeal, ScheduledStop, TravelMatrix } from '../types'
 import { dayCosts, type DayCosts } from './costs'
+import { formatDistance } from './distance'
 import { fitsOpeningHours, getAvailability } from './hours'
 import { isRequiredMeal, MAX_MEAL_WALK_METERS, MAX_MEAL_WALK_MINUTES, mealWindows, requiredMeals } from './meals'
-import { getTravelLeg } from './travel'
+import { dayWalking, getTravelLeg, type DailyWalking } from './travel'
 import { formatUsd, type ExchangeQuote } from '../services/exchange'
 
 export interface ConstraintIssue {
@@ -15,6 +16,7 @@ export interface ConstraintIssue {
 export interface DayAudit {
   date: string
   costs: DayCosts
+  walking: DailyWalking
   meals: Record<RequiredMeal, number>
   attractions: number
   issues: ConstraintIssue[]
@@ -36,6 +38,7 @@ export function mealProximityIssues(
   lookup: Record<string, Place>,
   matrix?: TravelMatrix | null,
   requireNeighbors = true,
+  unit: DistanceUnit = 'km',
 ): ConstraintIssue[] {
   const ordered = [...events].sort((a, b) => a.start - b.start)
   const attractions = ordered.filter((event) => lookup[event.placeId]?.kind !== 'food')
@@ -65,7 +68,10 @@ export function mealProximityIssues(
       if (leg.minutes > MAX_MEAL_WALK_MINUTES || leg.meters > MAX_MEAL_WALK_METERS) {
         issues.push({
           code: 'meal-too-far', severity: 'error', stopIds: [meal.id, event.id],
-          message: `${slot[0].toUpperCase() + slot.slice(1)} at ${place.name} is ${leg.minutes} min / ${(leg.meters / 1000).toFixed(1)} km from ${attraction.name} ${side} it (limit ${MAX_MEAL_WALK_MINUTES} min and ${(MAX_MEAL_WALK_METERS / 1000).toFixed(1)} km).`,
+          message: slot[0].toUpperCase() + slot.slice(1) + ' at ' + place.name + ' is ' +
+            leg.minutes + ' min / ' + formatDistance(leg.meters, unit) + ' from ' +
+            attraction.name + ' ' + side + ' it (limit ' + MAX_MEAL_WALK_MINUTES +
+            ' min and ' + formatDistance(MAX_MEAL_WALK_METERS, unit) + ').',
         })
       }
     }
@@ -76,15 +82,29 @@ export function mealProximityIssues(
 export function auditDay({ date, cityId, events, lookup, settings, matrix, quote }: AuditInput): DayAudit {
   const ordered = events.filter((event) => event.date === date).sort((a, b) => a.start - b.start)
   const costs = dayCosts(ordered, lookup, quote)
+  const walking = dayWalking(ordered, lookup, matrix)
   const meals: Record<RequiredMeal, number> = { breakfast: 0, lunch: 0, dinner: 0 }
   const issues: ConstraintIssue[] = []
   const attractions = ordered.filter((event) => lookup[event.placeId]?.kind !== 'food').length
+  const activityCounts = new Map<string, number>()
+  for (const event of events) {
+    if (lookup[event.placeId]?.kind !== 'food') {
+      activityCounts.set(event.placeId, (activityCounts.get(event.placeId) ?? 0) + 1)
+    }
+  }
 
   for (const event of ordered) {
     const place = lookup[event.placeId]
     if (!place || place.cityId !== cityId) {
       issues.push({ code: 'city-mismatch', severity: 'error', message: 'A stop does not belong to this city.', stopIds: [event.id] })
       continue
+    }
+    if (place.kind !== 'food' && (activityCounts.get(place.id) ?? 0) > 1) {
+      issues.push({
+        code: 'duplicate-activity', severity: 'error',
+        message: place.name + ' appears more than once in this city itinerary. Keep only one visit.',
+        stopIds: [event.id],
+      })
     }
     const availability = getAvailability(place, date)
     if (availability.status === 'closed' || !fitsOpeningHours(availability, event.start, event.duration)) {
@@ -116,7 +136,7 @@ export function auditDay({ date, cityId, events, lookup, settings, matrix, quote
     message: `Plan at least two non-meal activities around lunch (currently ${attractions}).`,
   })
 
-  issues.push(...mealProximityIssues(ordered, lookup, matrix))
+  issues.push(...mealProximityIssues(ordered, lookup, matrix, true, settings.distanceUnit))
   for (let index = 1; index < ordered.length; index += 1) {
     const from = ordered[index - 1]
     const to = ordered[index]
@@ -138,8 +158,14 @@ export function auditDay({ date, cityId, events, lookup, settings, matrix, quote
     code: 'activity-budget', severity: 'error',
     message: `Activities are about ${formatUsd(costs.activitiesUsd)} per person, over the ${formatUsd(settings.maxActivitiesUsd)} daily limit.`,
   })
+  if (walking.meters > settings.maxWalkingMeters + 0.00001) issues.push({
+    code: 'walking-budget', severity: 'error',
+    message: 'This day needs about ' + formatDistance(walking.meters, settings.distanceUnit) +
+      ' of walking between and at activities (' + walking.minutes + ' min), over the ' +
+      formatDistance(settings.maxWalkingMeters, settings.distanceUnit) + ' daily limit.',
+  })
   return {
-    date, costs, meals, attractions, issues,
+    date, costs, walking, meals, attractions, issues,
     complete: !issues.some((issue) => issue.severity === 'error'),
   }
 }

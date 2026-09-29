@@ -162,13 +162,20 @@ export function usePlanner() {
     return null
   }
 
+  const previewPlacement = (placeId: string, date: string, start: number, ignoreId?: string) => {
+    const place = city.getPlace(placeId)
+    if (!place) return { ok: false, message: 'That place is unavailable in this city.', tentative: false }
+    return validatePlacement({
+      place, date, start, events: plan.events, lookup: city.lookup, matrix,
+      startDate: plan.startDate, endDate: plan.endDate, cityId, ignoreId,
+      settings: plan.settings, quote,
+    })
+  }
+
   const addPlace = (placeId: string, date: string, start: number) => {
     const place = city.getPlace(placeId)
     if (!place) return { ok: false, message: 'That place is unavailable in this city.', tentative: false }
-    const result = validatePlacement({
-      place, date, start, events: plan.events, lookup: city.lookup, matrix,
-      startDate: plan.startDate, endDate: plan.endDate, cityId,
-    })
+    const result = previewPlacement(placeId, date, start)
     if (result.ok) {
       const event: ScheduledStop = {
         id: crypto.randomUUID(), placeId, date, start, duration: place.duration,
@@ -185,10 +192,7 @@ export function usePlanner() {
     const event = plan.events.find((stop) => stop.id === eventId)
     const place = event && city.getPlace(event.placeId)
     if (!event || !place) return { ok: false, message: 'That stop is unavailable.', tentative: false }
-    const result = validatePlacement({
-      place, date, start, events: plan.events, lookup: city.lookup, matrix,
-      startDate: plan.startDate, endDate: plan.endDate, ignoreId: eventId, cityId,
-    })
+    const result = previewPlacement(place.id, date, start, eventId)
     if (result.ok) setSnapshot((current) => replacePlan(current, cityId, {
       activeDate: date,
       events: current.plans[cityId].events.map((stop) => stop.id === eventId
@@ -254,7 +258,7 @@ export function usePlanner() {
     allEvents: destinations.flatMap((destination) => snapshot.plans[destination.id].events),
     audits, auditsByCity, overlap,
     setCity: (id: CityId) => setSnapshot((current) => cityIds.has(id) ? { ...current, selectedCity: id } : current),
-    generate, generateAll, setDates, addPlace, moveEvent, removeEvent,
+    generate, generateAll, setDates, previewPlacement, addPlace, moveEvent, removeEvent,
     togglePin, toggleSave, updateSettings, setActiveDate, clear,
   }
 }

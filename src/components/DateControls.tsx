@@ -4,6 +4,7 @@ import type { Interest, Pace, PlanSettings } from '../types'
 import { dateRangeError } from '../lib/dates'
 import type { CityGuide } from '../domain/CityGuide'
 import type { ExchangeQuote } from '../services/exchange'
+import { WalkingControls } from './WalkingControls'
 
 interface DateControlsProps {
   startDate: string
@@ -130,6 +131,7 @@ export function DateControls({
         <label><span>Activities / day · USD</span><span className="budget-input-wrap"><span>$</span><input type="number" name="activity-budget" aria-label="Maximum activities cost per day in USD" min="0" max="5000" step="0.5" value={activityCap} onChange={(event) => updateCap(event.target.value, 'maxActivitiesUsd')} onBlur={() => setActivityCap(String(settings.maxActivitiesUsd))} /></span><small>≈ {city.formatPrice(settings.maxActivitiesUsd * quote.perUsd[city.country.currency])}</small></label>
         <p>Estimated venue costs; real bills and ticket prices may change. Rate: {quote.asOf}{quote.source === 'snapshot' ? ' (offline snapshot)' : quote.source === 'cached' ? ' (cached)' : ' (live feed)'}.</p>
       </div>
+      <WalkingControls meters={settings.maxWalkingMeters} unit={settings.distanceUnit} onChange={onSettings} />
       <label className="holiday-toggle">
         <input
           type="checkbox"

@@ -1,13 +1,11 @@
-import { ArrowUpRight, Compass, Download, Info } from 'lucide-react'
+import { ArrowUpRight, Download } from 'lucide-react'
 
 interface HeaderProps {
   stopCount: number
-  onHow: () => void
-  onSources: () => void
   onExport: () => void
 }
 
-export function Header({ stopCount, onHow, onSources, onExport }: HeaderProps) {
+export function Header({ stopCount, onExport }: HeaderProps) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -17,8 +15,6 @@ export function Header({ stopCount, onHow, onSources, onExport }: HeaderProps) {
         </a>
         <nav className="header-links" aria-label="Main navigation">
           <a className="active-link" href="#planner">The planner</a>
-          <button type="button" onClick={onHow}>How it works</button>
-          <button type="button" onClick={onSources}>Our sources</button>
         </nav>
         <div className="header-actions">
           <span className="save-status"><span className="save-dot" /> Saved in this browser</span>
@@ -34,8 +30,6 @@ export function Header({ stopCount, onHow, onSources, onExport }: HeaderProps) {
           </button>
         </div>
         <div className="mobile-header-actions">
-          <button type="button" onClick={onHow} aria-label="How it works"><Compass size={20} /></button>
-          <button type="button" onClick={onSources} aria-label="Data sources"><Info size={20} /></button>
           <button type="button" onClick={onExport} disabled={!stopCount} aria-label="Export plan"><ArrowUpRight size={20} /></button>
         </div>
       </div>

@@ -25,6 +25,8 @@ describe('multi-city randomized itinerary', () => {
         const result = generateItinerary({ ...input, pinned: [], seed })
         expect(result.failedDates).toEqual([])
         expect(result.events.length).toBeGreaterThanOrEqual(input.dates.length * 5)
+        const activities = result.events.filter((event) => city.lookup[event.placeId].kind !== 'food')
+        expect(new Set(activities.map((event) => event.placeId)).size).toBe(activities.length)
         for (const date of input.dates) {
           const audit = auditDay({
             date, cityId: city.id, events: result.events, lookup: city.lookup,
@@ -34,6 +36,7 @@ describe('multi-city randomized itinerary', () => {
           expect(audit.meals).toEqual({ breakfast: 1, lunch: 1, dinner: 1 })
           expect(audit.costs.mealsUsd).toBeLessThanOrEqual(input.settings.maxMealsUsd)
           expect(audit.costs.activitiesUsd).toBeLessThanOrEqual(input.settings.maxActivitiesUsd)
+          expect(audit.walking.meters).toBeLessThanOrEqual(input.settings.maxWalkingMeters)
         }
       }
     }, 60000)
@@ -94,5 +97,15 @@ describe('multi-city randomized itinerary', () => {
     })
     expect(withoutUnconfirmed.failedDates).toContain('2026-12-24')
     expect(withoutUnconfirmed.events.some((event) => event.date === '2026-12-24')).toBe(false)
+  }, 60000)
+
+  it('does not generate an itinerary with a walking allowance too small for any activity', () => {
+    const athens = destinations[0]
+    const result = generateItinerary({
+      ...setup(athens), settings: { ...defaultSettings(), maxWalkingMeters: 10 },
+      pinned: [], seed: 21,
+    })
+    expect(result.failedDates).toEqual(setup(athens).dates)
+    expect(result.events).toEqual([])
   }, 60000)
 })

@@ -94,7 +94,6 @@ function candidateScore(
   const confidence = candidate.reviewCount ? Math.min(1, Math.log10(candidate.reviewCount + 1) / 3) : 0
   const rating = candidate.rating * confidence
   const repeatedFood = candidate.kind === 'food' && used.has(candidate.id) ? 7 : 0
-  const repeatedActivity = candidate.kind !== 'food' && used.has(candidate.id) ? 16 : 0
   const tentative = getAvailability(candidate, date).status === 'tentative' ? 4 : 0
   const usd = stopCostUsd(candidate, quote) ?? 100
   return candidate.priority * 5 + rating * 1.8 +
@@ -102,7 +101,7 @@ function candidateScore(
     (matchesInterest(candidate, settings.interest) ? 4 : 0) -
     travelAdded(current.events, candidate, start, lookup, matrix) * 0.48 -
     Math.abs(start - target) / 45 - usd * 0.05 -
-    repeatedFood - repeatedActivity - tentative + random() * 7
+    repeatedFood - tentative + random() * 7
 }
 
 function candidateStates(
@@ -114,7 +113,8 @@ function candidateStates(
   const options: Candidate[] = []
   for (const place of input.places) {
     if (role === 'morning' || role === 'afternoon') {
-      if (place.kind === 'food' || state.events.some((event) => event.placeId === place.id)) continue
+      if (place.kind === 'food' || used.has(place.id) ||
+        state.events.some((event) => event.placeId === place.id)) continue
     } else {
       if (!place.mealSlots?.includes(role) || state.events.some((event) => event.placeId === place.id)) continue
       if (getAvailability(place, date).status === 'tentative' && !input.settings.includeTentativeMeals) continue
@@ -141,6 +141,7 @@ function candidateStates(
       }
       const withCandidate = [...state.events, nextEvent]
       if (!withinDailyCaps(dayCosts(withCandidate, lookup, input.quote), input.settings)) continue
+      if (dayWalking(withCandidate, lookup, input.matrix).meters > input.settings.maxWalkingMeters) continue
       if (role !== 'breakfast' && role !== 'lunch' &&
         mealProximityIssues(withCandidate, lookup, input.matrix, false).length) continue
       forPlace.push({
@@ -197,7 +198,8 @@ function addOptionalActivities(
   while (current.events.filter((event) => lookup[event.placeId]?.kind !== 'food').length < target) {
     const options: State[] = []
     for (const place of input.places) {
-      if (place.kind === 'food' || current.events.some((event) => event.placeId === place.id)) continue
+      if (place.kind === 'food' || used.has(place.id) ||
+        current.events.some((event) => event.placeId === place.id)) continue
       if (stopCostUsd(place, input.quote) === null) continue
       for (const window of [
         { earliest: 10 * 60 + 30, latest: 12 * 60, target: 11 * 60 },
@@ -243,8 +245,7 @@ function buildDay(
     matrix: input.matrix, quote: input.quote,
   }).complete)
   if (!feasible.length) return null
-  const enhanced = feasible.map((state) => addOptionalActivities(state, date, input, lookup, used, random, run))
-  const close = keepBest(enhanced).slice(0, 5)
+  const close = keepBest(feasible).slice(0, 5)
   const top = close[0].score
   const weights = close.map((state) => Math.exp((state.score - top) / 9))
   let draw = random() * weights.reduce((sum, value) => sum + value, 0)
@@ -268,9 +269,13 @@ export function generateItinerary(input: GeneratorInput): GenerationResult {
   const random = randomGenerator(input.seed)
   const constrainedFirst = [...dates].sort((a, b) => {
     const available = (date: string) => places.filter((place) =>
-      place.kind !== 'food' && getAvailability(place, date).status !== 'closed' &&
+      getAvailability(place, date).status !== 'closed' &&
+      (place.kind !== 'food' || settings.includeTentativeMeals ||
+        getAvailability(place, date).status !== 'tentative') &&
       stopCostUsd(place, quote) !== null,
-    ).length
+    ).reduce((count, place) =>
+      count + (place.kind === 'food'
+        ? place.mealSlots?.filter((slot) => slot !== 'snack').length ?? 0 : 1), 0)
     return available(a) - available(b) || a.localeCompare(b)
   })
   const results: { events: ScheduledStop[]; failedDates: string[]; score: number }[] = []
@@ -279,7 +284,6 @@ export function generateItinerary(input: GeneratorInput): GenerationResult {
     const events = pinned.map((event) => ({ ...event }))
     const failedDates: string[] = []
     const used = new Set(events.map((event) => event.placeId))
-    let score = 0
     for (const date of constrainedFirst) {
       const pinnedDay = events.filter((event) => event.date === date)
       const day = buildDay(date, pinnedDay, input, lookup, used, random, run)
@@ -291,8 +295,22 @@ export function generateItinerary(input: GeneratorInput): GenerationResult {
         if (!pinnedDay.some((previous) => previous.id === event.id)) events.push(event)
         used.add(event.placeId)
       }
-      score += dayScore(day.events, lookup, matrix)
     }
+    for (const date of constrainedFirst) {
+      if (failedDates.includes(date)) continue
+      const dayEvents = events.filter((event) => event.date === date)
+      const enhanced = addOptionalActivities(
+        { events: dayEvents, score: 0 }, date, input, lookup, used, random, run,
+      )
+      for (const event of enhanced.events) {
+        if (!dayEvents.some((previous) => previous.id === event.id)) {
+          events.push(event)
+          used.add(event.placeId)
+        }
+      }
+    }
+    const score = dates.reduce((total, date) =>
+      total + dayScore(events.filter((event) => event.date === date), lookup, matrix), 0)
     results.push({ events, failedDates, score: score + random() * 12 })
   }
 

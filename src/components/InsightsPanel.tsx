@@ -1,13 +1,14 @@
-import { ArrowUpRight, CheckCircle2, CircleAlert, Footprints, Info, MapPinned, Route, Sparkles, UtensilsCrossed } from 'lucide-react'
+import { CheckCircle2, CircleAlert, Footprints, Info, MapPinned, Route, Sparkles, UtensilsCrossed } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import type { CityGuide } from '../domain/CityGuide'
 import type { DayAudit } from '../lib/audit'
 import { dateLabel, durationLabel } from '../lib/dates'
+import { formatDistance } from '../lib/distance'
 import { getAvailability } from '../lib/hours'
 import { requiredMeals } from '../lib/meals'
-import { dayWalking, getTravelLeg } from '../lib/travel'
+import { getTravelLeg } from '../lib/travel'
 import { exchangeSourceUrl, formatUsd, type ExchangeQuote } from '../services/exchange'
-import type { Place, ScheduledStop, TravelMatrix } from '../types'
+import type { Place, PlanSettings, ScheduledStop, TravelMatrix } from '../types'
 
 const MapPanel = lazy(() => import('./MapPanel').then(({ MapPanel }) => ({ default: MapPanel })))
 
@@ -21,17 +22,15 @@ interface InsightsPanelProps {
   routeStatus: 'loading' | 'routed' | 'estimated'
   audit: DayAudit
   quote: ExchangeQuote
-  maxMealsUsd: number
-  maxActivitiesUsd: number
-  onSources: () => void
+  settings: PlanSettings
 }
 
 export function InsightsPanel({
   city, date, stops, places, lookup, matrix, routeStatus, audit, quote,
-  maxMealsUsd, maxActivitiesUsd, onSources,
+  settings,
 }: InsightsPanelProps) {
   const ordered = [...stops].sort((a, b) => a.start - b.start)
-  const walking = dayWalking(ordered, lookup, matrix)
+  const walking = audit.walking
   const tentative = ordered.filter((stop) =>
     lookup[stop.placeId] && getAvailability(lookup[stop.placeId], date).status === 'tentative')
   const closedCount = places.filter((place) =>
@@ -61,8 +60,8 @@ export function InsightsPanel({
         </span>)}
       </div>
       <div className="daily-budget" aria-label="Daily spending estimates per person">
-        <div><span>MEALS / PERSON</span><strong>{formatUsd(audit.costs.mealsUsd)}</strong><small>of {formatUsd(maxMealsUsd)} max</small><meter min="0" max={Math.max(1, maxMealsUsd)} value={Math.min(audit.costs.mealsUsd, Math.max(1, maxMealsUsd))} aria-label="Meals budget used" /></div>
-        <div><span>ACTIVITIES / PERSON</span><strong>{formatUsd(audit.costs.activitiesUsd)}</strong><small>of {formatUsd(maxActivitiesUsd)} max</small><meter min="0" max={Math.max(1, maxActivitiesUsd)} value={Math.min(audit.costs.activitiesUsd, Math.max(1, maxActivitiesUsd))} aria-label="Activities budget used" /></div>
+        <div><span>MEALS / PERSON</span><strong>{formatUsd(audit.costs.mealsUsd)}</strong><small>of {formatUsd(settings.maxMealsUsd)} max</small><meter min="0" max={Math.max(1, settings.maxMealsUsd)} value={Math.min(audit.costs.mealsUsd, Math.max(1, settings.maxMealsUsd))} aria-label="Meals budget used" /></div>
+        <div><span>ACTIVITIES / PERSON</span><strong>{formatUsd(audit.costs.activitiesUsd)}</strong><small>of {formatUsd(settings.maxActivitiesUsd)} max</small><meter min="0" max={Math.max(1, settings.maxActivitiesUsd)} value={Math.min(audit.costs.activitiesUsd, Math.max(1, settings.maxActivitiesUsd))} aria-label="Activities budget used" /></div>
       </div>
       <p className="exchange-note">Converted from {city.country.currency} at USD rates from <a href={exchangeSourceUrl} target="_blank" rel="noreferrer">ExchangeRate-API</a>, {quote.asOf} ({quote.source}). Costs are per-person estimates.</p>
       {(errors.length > 0 || cautions.length > 0) && <ul className="constraint-list" aria-label="Itinerary requirements and cautions">
@@ -80,8 +79,12 @@ export function InsightsPanel({
       </div>
       <div className="route-metrics">
         <div><span className="metric-icon"><Footprints size={19} /></span><strong>{durationLabel(walking.minutes)}</strong><small>walking time</small></div>
-        <div><span className="metric-icon"><Route size={19} /></span><strong>{(walking.meters / 1000).toFixed(1)} km</strong><small>between stops</small></div>
+        <div><span className="metric-icon"><Route size={19} /></span><strong>{formatDistance(walking.meters, settings.distanceUnit)}</strong><small>of {formatDistance(settings.maxWalkingMeters, settings.distanceUnit)} per day</small></div>
       </div>
+      <meter className="walking-meter" min="0" max={Math.max(1, settings.maxWalkingMeters)}
+        value={Math.min(walking.meters, Math.max(1, settings.maxWalkingMeters))}
+        aria-label="Daily walking distance used" />
+      <p className="walking-breakdown">About {durationLabel(walking.onSite.minutes)} at activities · {durationLabel(walking.transfers.minutes)} between stops. Distances inside venues are estimates.</p>
       <div className="route-source">
         <span className={routeStatus === 'routed' ? 'source-indicator ready' : 'source-indicator'} />
         {routeStatus === 'routed' ? 'Walking times from OpenStreetMap foot routes'
@@ -95,7 +98,6 @@ export function InsightsPanel({
         {tentative.length > 0 && <div className="note caution"><CircleAlert size={17} /><p><strong>{tentative.length} stops need an hours check.</strong> Call ahead before relying on them.</p></div>}
         {longest && longest.minutes >= 45 && <div className="note"><Footprints size={17} /><p><strong>Long walk:</strong> {longest.from.name} to {longest.to.name} is about {longest.minutes} min. Arrange local transit or a taxi separately.</p></div>}
       </div>
-      <button type="button" className="source-link" onClick={onSources}>How we check hours & prices <ArrowUpRight size={15} /></button>
     </aside>
   )
 }

@@ -367,6 +367,7 @@ const athensDrafts: PlaceDraft[] = [
     kind: 'outdoors',
     duration: 40,
     coordinates: { lat: 37.97638, lng: 23.725883 },
+    walkingEstimate: { minutes: 10, meters: 350 },
     rating: 4.2,
     reviewCount: 54,
     reviewUrl:
@@ -390,6 +391,7 @@ const athensDrafts: PlaceDraft[] = [
     kind: 'outdoors',
     duration: 40,
     coordinates: { lat: 37.972247, lng: 23.723349 },
+    walkingEstimate: { minutes: 22, meters: 650 },
     rating: 4.4,
     reviewCount: 755,
     reviewUrl:
